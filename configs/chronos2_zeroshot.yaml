@@ -1,0 +1,91 @@
+# Chronos-2 zero-shot time-series foundation-model BENCHMARK (future-round).
+# Amazon Chronos-2 (Apache-2.0) as an additional benchmark alongside Forma and the
+# baselines. Zero-shot: no training. MULTIVARIATE per firm -- for each firm-origin
+# the model is fed that firm's whole account panel (all target accounts stacked as
+# one 2-D group, each account's own {account}_level_0 history) and forecasts every
+# account JOINTLY for horizons 1..20 via Chronos-2 group attention. This mirrors
+# Forma-at-inference (a firm's full account panel at once, no covariates, no
+# cross-firm features); the difference is Chronos is NOT trained on the panel.
+# Reuses the R13 pf_full / r13_node_optionD_indfe_val8 processed data (NO rebuild).
+#
+# Parity: we emit a forecast per account; evaluate.py inner-joins to the sparse
+# {account}_t{h} actuals, so both models are scored on the same observed cells
+# (present-in-q0 parity is enforced downstream, not on the forecast side).
+#
+# Probabilistic: median -> point track R2/MAE; 0.1/0.9 quantile spread -> Gaussian
+# sigma for the likelihood track NLL/CRPS, so it scores on BOTH tracks. Forecast
+# name 'chronos' groups as its own family in evaluate.py.
+#
+#   python -m forma.train --config configs/chronos2_zeroshot.yaml --model-only chronos --forecast-splits test
+experiment:
+  name: "chronos2_zeroshot"
+  description: "Amazon Chronos-2 zero-shot TSFM benchmark on the R13 pf_full build; probabilistic (median + 0.1/0.9->sigma), scored on both point and likelihood tracks."
+
+seed: 0
+
+inference:
+  reconcile: false
+  save_sigma: true            # emit the likelihood-track sigma (derived from the 0.1/0.9 quantile spread).
+  seed_in_forecast_name: false # single zero-shot forecast -> 4-segment {model}__{fs}__{split} name.
+
+data:
+  feature_set: "pf_full"
+  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the R13 8-year-val build; do NOT rebuild.
+  raw_path: "data/raw/compustat_with_permno.parquet"
+  processed_dir: "data/processed"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 32
+  num_workers: 8
+  predict_batch_size: 32
+  time_splits:
+    train_end_year: 2001   # train 1971-2001; val 2002-2009; test 2010+ (matches the R13 build).
+    val_end_year: 2009
+  firm_id_map_path: "data/processed/firm_id_map.csv"
+  account_id_map_path: "data/processed/account_id_map.csv"
+  industry_id_map_path: "data/processed/industry_id_map.csv"
+  industry_mode: "node"
+  tabular_industry_fe: true
+  no_cv: true
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    forecast_horizon: 20
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+
+  targets:
+    all: true
+    present_in_q0: true
+    variables:
+    - "niq"
+    - "revtq"
+    - "cogsq"
+    - "oiadpq"
+    - "dpq"
+    - "gpq"
+    - "cheq"
+    - "ppentq"
+    - "ltq"
+    - "seqq"
+    - "dlttq"
+
+results_dir: "results/forecasts"
+stop_on_error: true
+
+models:
+  chronos:
+    type: "chronos"
+    parameters:
+      model_id: "amazon/chronos-2"     # Apache-2.0. Swap for amazon/chronos-bolt-base for a lighter run.
+      device: "auto"                    # cuda if available, else cpu.
+      torch_dtype: "auto"               # bf16 on cuda, fp32 on cpu.
+      quantile_levels: [0.1, 0.5, 0.9]
+      sigma_quantile_pair: [0.1, 0.9]   # symmetric pair -> Gaussian-equivalent predictive std.
+      max_context: 200                  # cap trailing history points fed as context per series.
+      batch_size: 256                   # series forecast per pipeline call.
+      forecast_horizon: 20

@@ -1,0 +1,11 @@
+# Normalize text to LF in the repo (clean for Linux CI and anonymized mirrors).
+* text=auto eol=lf
+
+# Binary artifacts.
+*.ckpt binary
+*.npy  binary
+*.parquet binary
+
+# The LLM system-prompt arms ship BYTE-EXACT (the paper's two arms). Suppress all
+# line-ending / encoding normalization so their bytes never change on checkout.
+scripts/llm/prompts/** -text

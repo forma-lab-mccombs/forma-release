@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forma-release"
+version = "0.1.0"
+description = "Forma: code, configurations, and trained weights for the GNN-Transformer pro-forma forecaster and the competitors in the ProForma-20Q benchmark."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+keywords = [
+    "financial-forecasting", "gnn-transformer", "probabilistic-forecasting",
+    "quarterly-financials", "proforma-20q", "compustat",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+
+# Core install = FORMA INFERENCE ONLY (checkpoint -> forecast parquet). This is
+# what CI's synthetic smoke test installs. The competitor/LLM/chronos paths pull
+# their own stacks via the extras below, so a heavy or version-pinned optional
+# dependency (e.g. chronos' torch-2.6/bf16) never constrains the core.
+#
+# The scoring/evaluation of forecasts is provided by the companion package
+# `proforma-20q`, which is a SOURCE install (not on PyPI):
+#     pip install -e /path/to/proforma-20q
+# See README "Install".
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy>=1.10",
+    "pyyaml",
+    "fastparquet",
+    "pyarrow",
+    "tqdm",
+    "torch",
+    "lightning",
+    "torch-geometric",
+]
+
+[project.optional-dependencies]
+# LLM benchmark harness (scripts/llm/): Anthropic/OpenAI via httpx (optionally
+# through an HTTP gateway); duckdb backs the firm-quarter eligibility queries.
+llm = ["anthropic", "duckdb", "httpx"]
+# Chronos-2 zero-shot driver. Its torch pin (>=2.6 for current bf16 kernels) is
+# isolated here so it cannot hold back the core inference install.
+chronos = ["chronos-forecasting", "einops"]
+# Traditional competitors (FFNN uses core torch; these cover RF/GBM/EN/OLS).
+competitors = ["scikit-learn>=1.3", "lightgbm>=4.0", "xgboost"]
+dev = ["pytest>=7", "pyarrow"]
+
+[project.urls]
+Homepage = "https://github.com/ANONYMIZED/forma-release"
+Repository = "https://github.com/ANONYMIZED/forma-release"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Checkpoint-coupled categorical->embedding-index maps travel WITH the package so
+# inference cannot silently derive a permuted mapping from data ordering.
+forma = ["metadata/*.csv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

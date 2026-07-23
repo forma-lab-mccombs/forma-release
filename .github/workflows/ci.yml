@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Core = Forma inference only. This job installs NO competitor/LLM/chronos
+  # extras and proves (a) the package imports without scikit-learn/xgboost/
+  # lightgbm/chronos and (b) the scoring-math + WRDS-free synthetic pipeline
+  # smoke test pass on the core stack alone.
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install companion benchmark package (source)
+        run: pip install "proforma-20q @ git+https://github.com/ANONYMIZED/proforma-20q"
+      - name: Install forma-release (core + dev only)
+        run: pip install -e ".[dev]"
+      - name: Core import must not pull competitor/LLM libraries
+        run: |
+          python - <<'PY'
+          import sys, forma
+          from forma.models import FormaModel, BaseModel
+          from forma.scoring import evaluate, eval_cache
+          from forma.data import config_utils  # torch-free decoupling
+          for lib in ("sklearn", "xgboost", "lightgbm", "anthropic", "duckdb"):
+              assert lib not in sys.modules, f"core install leaked {lib}"
+          print("core import OK; version", forma.__version__)
+          PY
+      - name: Scoring-math + synthetic pipeline smoke tests (core stack)
+        run: python -m pytest tests/ --ignore=tests/test_llm_harness.py -q
+
+  # The LLM harness needs the [llm] extra (httpx). Kept separate so it never
+  # constrains the core install.
+  llm-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install forma-release with the LLM extra
+        run: pip install -e ".[llm,dev]"
+      - name: LLM harness loads + parses (no network)
+        run: python -m pytest tests/test_llm_harness.py -q

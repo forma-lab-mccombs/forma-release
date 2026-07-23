@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# HARD RULE: no WRDS-derived content in git, ever. No data files, no forecast
+# parquets. Only code, configs, the small checkpoint-coupled id maps, and the
+# Forma checkpoints live in the repo.
+# ---------------------------------------------------------------------------
+data/
+results/
+forecasts/
+*.parquet
+*.csv
+
+# ...except the two SMALL checkpoint-coupled categorical id maps (schema/metadata,
+# NOT firm-level data): the account and industry name->embedding-index tables the
+# shipped Forma checkpoints were trained under. Deriving these from data ordering
+# at inference time silently permutes the embeddings, so they MUST ship.
+!src/forma/metadata/account_id_map.csv
+!src/forma/metadata/industry_id_map.csv
+
+# ...and any aggregate-level (by-horizon / by-quarter) CSVs committed to render
+# the F1/F2 figures. Firm-level CSVs stay ignored by the rule above.
+!results_panels/**/*.csv
+
+# WRDS credentials must never be committed.
+.pgpass
+*.pgpass
+*.env
+
+# LLM benchmark: never commit responses, API keys, or forecast outputs.
+scripts/llm/responses/
+*.responses.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

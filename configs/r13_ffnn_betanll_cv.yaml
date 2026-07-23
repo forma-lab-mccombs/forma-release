@@ -1,0 +1,139 @@
+# R13 FFNN beta-NLL - CV / epoch-finding pass (large + linear), seed 62.
+#
+# >>> SEQUENCED: RUN THIS FIRST, then set the benchmark configs' `epochs`. <<<
+# no_cv:false -> trains on 1971-2001 and early-stops on the 8-year val fold
+# (2002-2009) to find each net's best-val epoch UNDER the R13 split. The window
+# moved vs r12, so the r12 epochs (large 6 / linear 7) do NOT transfer - re-find.
+# skip_predict:true (diagnostic only). Each model prints "best val epoch = N";
+# copy each into the matching r13_ffnn_{large,linear}_betanll_seed*.yaml.
+#
+#   python -m forma.train --config configs/r13_ffnn_betanll_cv.yaml --forecast-splits test
+experiment:
+  name: "r13_ffnn_betanll_cv"
+  description: "R13 FFNN beta-NLL (beta=0.5) dropout-0.10 recipe, large+linear; CV/epoch-finding pass (no_cv:false, skip_predict:true) on the R13 8-year-val build. Read best-val epochs, set the benchmark configs, then run those."
+
+seed: 62
+
+inference:
+  reconcile: false
+
+trainer:
+  select_best_by_val_loss: false
+
+data:
+  feature_set: "pf_full"
+  dataset_tag: "r13_node_optionD_indfe_val8"   # R13 8-year-val rebuild; train_end_year=2001 also moves the reg-stats cutoff. Build ONCE (see header).
+  raw_path: "data/raw/compustat_with_permno.parquet"
+  processed_dir: "data/processed"
+  identities_path: "configs/identities.json"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 32
+  num_workers: 8
+  predict_batch_size: 32
+  use_future_grid: false
+  time_splits:
+    train_end_year: 2001   # train 1971-2001 (extended); also the reg-stats estimation cutoff.
+    val_end_year: 2009     # val 2002-2009 (8 years); test 2010+ unchanged.
+  firm_id_map_path: "data/processed/firm_id_map.csv"
+  account_id_map_path: "data/processed/account_id_map.csv"
+  industry_id_map_path: "data/processed/industry_id_map.csv"
+  industry_config_path: "configs/ff48_sic_ranges.json"
+  industry_mode: "node"
+  tabular_industry_fe: true   # FF48 dummies on the tabular matrix (baselines/FFNN). No-op for Forma (tuple-only).
+  no_cv: false
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    tuple_max_abs_zscore: 6.0   # Forma runtime clamp (PR #138). Ignored by the tabular pipeline + make_dataset.
+    reg_mu_scale_lag: 0
+    reg_mu_feature_lags: [0]
+    reg_sig_scale_lag: 4
+    reg_sig_feature_lags: [0, 8]
+    reg_k_scale_lag: 4
+    reg_k_feature_lags: [0, 8]
+    max_abs_zscore: 6.0
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+    forecast_horizon: 20
+    imputation:
+        use: true
+        n_factors: 10
+
+  curriculum:
+    max_epochs: 12
+    min_horizon: 0
+    initial_horizon: 4
+    horizon_step: 4
+    epochs_per_step: 1
+    max_horizon: 20
+    min_lookback: 4
+    max_lookback: 12
+    deterministic_forecast: true
+    pro_forma_mask_probability: 0.5
+    future_mask_probability: 0.95
+    identity_group_mask_probability: 0.1
+    ungrouped_mask_probability: 0.05
+
+  targets:
+    all: true
+    present_in_q0: true
+    variables:
+    - "niq"
+    - "revtq"
+    - "cogsq"
+    - "oiadpq"
+    - "dpq"
+    - "gpq"
+    - "cheq"
+    - "ppentq"
+    - "ltq"
+    - "seqq"
+    - "dlttq"
+
+results_dir: "results/forecasts"
+stop_on_error: false
+skip_predict: true     # CV pass: only need each model's "best val epoch = N".
+
+models:
+  ffnn_large_b50:   # large [1024,1024,512], dropout 0.10, wd 0.0, beta_nll 0.5
+    type: "ffnn"
+    parameters:
+      hidden_dims: [1024, 1024, 512]
+      activation: gelu
+      dropout: 0.1
+      lr: 1e-4
+      weight_decay: 0.0
+      epochs: 100
+      batch_size: 1024
+      early_stopping_patience: 10
+      loss_normalization: global
+      loss_type: gaussian
+      beta_nll: 0.5
+      student_t_df: 6.0
+      log_sigma_sq_min: -10.0
+      log_sigma_sq_max: 10.0
+      seed: 62
+
+  ffnn_linear_b50:   # linear [], dropout 0.10, wd 0.0, beta_nll 0.5
+    type: "ffnn"
+    parameters:
+      hidden_dims: []
+      activation: gelu
+      dropout: 0.1
+      lr: 1e-4
+      weight_decay: 0.0
+      epochs: 100
+      batch_size: 1024
+      early_stopping_patience: 10
+      loss_normalization: global
+      loss_type: gaussian
+      beta_nll: 0.5
+      student_t_df: 6.0
+      log_sigma_sq_min: -10.0
+      log_sigma_sq_max: 10.0
+      seed: 62

@@ -1,0 +1,132 @@
+[
+    {
+        "name": "asset_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+cheq_0", "+invtq_0", "+rectq_0", "+acoq_0", "+ppentq_0", "+aoq_0", "-atq_0"]
+    },
+    {
+        "name": "asset_structure",
+        "group": "balance_sheet",
+        "terms": ["+actq_0", "+ancq_0", "-atq_0"]
+    },
+    {
+        "name": "current_asset_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+cheq_0", "+invtq_0", "+rectq_0", "+acoq_0", "-actq_0"]
+    },
+    {
+        "name": "intangible_in_other_assets",
+        "group": "balance_sheet",
+        "terms": ["+intanq_0", "+aoq_ex_intanq_0", "-aoq_0"]
+    },
+    {
+        "name": "intangible_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+gdwlq_0", "+intanoq_0", "-intanq_0"]
+    },
+    {
+        "name": "ppe_gross_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+ppentq_0", "+dpactq_0", "-ppegtq_0"]
+    },
+    {
+        "name": "liability_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+apq_0", "+lcoq_0", "+dlcq_0", "+txpq_0", "+dlttq_0", "+txditcq_0", "+loq_0", "-ltq_0"]
+    },
+    {
+        "name": "current_liability_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+apq_0", "+dlcq_0", "+txpq_0", "+lcoq_0", "-lctq_0"]
+    },
+    {
+        "name": "other_liabilities_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+drltq_0", "+loq_ex_dr_0", "-loq_0"]
+    },
+    {
+        "name": "working_capital",
+        "group": "balance_sheet",
+        "terms": ["+wcapq_0", "-actq_0", "+lctq_0"]
+    },
+    {
+        "name": "common_equity_decomposition",
+        "group": "balance_sheet",
+        "terms": ["+cstkq_0", "+capsq_0", "+req_0", "-tstkq_0", "-ceqq_0"]
+    },
+    {
+        "name": "stockholders_equity",
+        "group": "balance_sheet",
+        "terms": ["+seqq_0", "-pstkq_0", "-ceqq_0"]
+    },
+    {
+        "name": "accounting_equation",
+        "group": "balance_sheet",
+        "terms": ["+atq_0", "-ltq_0", "-mibtq_0", "-seqq_0"]
+    },
+    {
+        "name": "gross_profit",
+        "group": "income_statement",
+        "terms": ["+gpq_0", "-revtq_0", "+cogsq_0"]
+    },
+    {
+        "name": "ebitda",
+        "group": "income_statement",
+        "terms": ["+oibdpq_0", "-gpq_0", "+xsgaq_0"]
+    },
+    {
+        "name": "ebit",
+        "group": "income_statement",
+        "terms": ["+oiadpq_0", "-oibdpq_0", "+dpq_0"]
+    },
+    {
+        "name": "pretax_income",
+        "group": "income_statement",
+        "terms": ["+piq_0", "-oiadpq_0", "+xintq_0", "-nopiq_0", "-spiq_0"]
+    },
+    {
+        "name": "income_before_extra",
+        "group": "income_statement",
+        "terms": ["+ibq_0", "-piq_0", "+txtq_0", "+miiq_0"]
+    },
+    {
+        "name": "net_income_from_ib",
+        "group": "income_statement",
+        "terms": ["+niq_0", "-ibq_0", "-xidoq_0"]
+    },
+    {
+        "name": "net_income",
+        "group": "income_statement",
+        "terms": ["+niq_0", "-piq_0", "+txtq_0", "+miiq_0", "-xidoq_0"]
+    },
+    {
+        "name": "operating_expenses",
+        "group": "income_statement",
+        "terms": ["+xoprq_0", "-cogsq_0", "-xsgaq_0"]
+    },
+    {
+        "name": "sga_decomposition",
+        "group": "income_statement",
+        "terms": ["+xrdq_0", "+xsgaq_ex_rd_0", "-xsgaq_0"]
+    },
+    {
+        "name": "full_income_statement",
+        "group": "income_statement",
+        "terms": ["+revtq_0", "-cogsq_0", "-xsgaq_0", "-dpq_0", "-xintq_0", "+nopiq_0", "+spiq_0", "-txtq_0", "-miiq_0", "+xidoq_0", "-niq_0"]
+    },
+    {
+        "name": "investing_cash_flow",
+        "group": "cash_flow",
+        "terms": ["-capxq_0", "-ivchq_0", "-aqcq_0", "+sivq_0", "+sppeq_0", "+ivstchq_0", "+ivacoq_0", "-ivncfq_0"]
+    },
+    {
+        "name": "financing_cash_flow",
+        "group": "cash_flow",
+        "terms": ["+sstkq_0", "-prstkcq_0", "+dltisq_0", "-dltrq_0", "+dlcchq_0", "-dvq_0", "+fiaoq_0", "+txbcofq_0", "-fincfq_0"]
+    },
+    {
+        "name": "free_cash_flow",
+        "group": "cash_flow",
+        "terms": ["+fcfq_0", "-oancfq_0", "+capxq_0"]
+    }
+]

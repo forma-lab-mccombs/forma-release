@@ -1,0 +1,129 @@
+# R13 FORMA LAPLACE beta-NLL(0.5), leak-closed future grid - seed 62.
+# L1/median-track specialist for the ICAIF26 two-track T1: identical to the
+# CANONICAL r13_forma_fgrid_seed62.yaml EXCEPT loss_type gaussian->laplace
+# (beta_nll stays 0.5, mirroring the Gaussian track's weighting - the
+# easiest-to-defend symmetric recipe). mu targets the conditional median;
+# the scale head keeps the density for Laplace NLL/CRPS. train.py writes the
+# 'laplace' .nll.json sidecar so evaluate.py scores the matching family.
+#
+# Fleet sibling of the WINNING stage-1 arm (beta=0.5 selected 2026-07-06:
+# seed-60 lap05 beat Opus v8 on the LLM sample, 0.3528 vs 0.3616 MAE, and the
+# L1-GBM on the GBM sample, 0.4188 vs 0.4210; beat lap10 on the LLM sample
+# with DM **/***). Seed is the ONLY diff vs r13_forma_lap05_fgrid_seed62.yaml;
+# the 5 seeds form the Panel B / Panel C mixture family via
+# seed_in_forecast_name (evaluate.py auto-groups).
+#
+#   python -m forma.train --config configs/r13_forma_lap05_fgrid_seed62.yaml --model-only forma --forecast-splits test
+experiment:
+  name: "r13_forma_lap05_fgrid_seed62"
+  description: "R13 Forma Laplace beta-NLL(0.5) leak-closed future-grid, seed 62; L1/median-track arm, else canonical-fgrid-identical (fp32, seed-aware forecast name, forecast_name=forma_lap05_fgrid). Stage-1 seed of the planned 5-seed family."
+
+seed: 62
+
+inference:
+  reconcile: false
+  save_sigma: true
+  fp32: true                  # de-quantize forecasts (PR #154); matches the fp32 likelihood pool.
+  seed_in_forecast_name: true # 5-segment {model}__{fs}__{seed}__{split} name -> eval mixture family.
+
+trainer:
+  select_best_by_val_loss: false
+  gradient_clip_val: 1.0
+
+data:
+  feature_set: "pf_full"
+  dataset_tag: "r13_node_optionD_indfe_val8"   # R13 8-year-val rebuild; reuse the existing build, do NOT rebuild.
+  raw_path: "data/raw/compustat_with_permno.parquet"
+  processed_dir: "data/processed"
+  identities_path: "configs/identities.json"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 32
+  num_workers: 8
+  predict_batch_size: 32
+  use_future_grid: true                 # leak-closed future grid ON (matches canonical fgrid Forma).
+  future_grid_sample_overhang: false    # cut the ex-ante data-end overhang (r7e2, #85).
+  time_splits:
+    train_end_year: 2001   # train 1971-2001 (extended); also the reg-stats estimation cutoff.
+    val_end_year: 2009     # val 2002-2009 (8 years); test 2010+ unchanged.
+  firm_id_map_path: "data/processed/firm_id_map.csv"
+  account_id_map_path: "data/processed/account_id_map.csv"
+  industry_id_map_path: "data/processed/industry_id_map.csv"
+  industry_config_path: "configs/ff48_sic_ranges.json"
+  industry_mode: "node"
+  tabular_industry_fe: true   # FF48 dummies on the tabular matrix (baselines/FFNN). No-op for Forma (tuple-only).
+  no_cv: true
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    tuple_max_abs_zscore: 6.0   # Forma runtime clamp (PR #138). Ignored by the tabular pipeline + make_dataset.
+    reg_mu_scale_lag: 0
+    reg_mu_feature_lags: [0]
+    reg_sig_scale_lag: 4
+    reg_sig_feature_lags: [0, 8]
+    reg_k_scale_lag: 4
+    reg_k_feature_lags: [0, 8]
+    max_abs_zscore: 6.0
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+    forecast_horizon: 20
+    imputation:
+        use: true
+        n_factors: 10
+
+  curriculum:
+    max_epochs: 12
+    min_horizon: 0
+    initial_horizon: 4
+    horizon_step: 4
+    epochs_per_step: 1
+    max_horizon: 20
+    min_lookback: 4
+    max_lookback: 12
+    deterministic_forecast: true
+    pro_forma_mask_probability: 0.5
+    future_mask_probability: 0.95
+    identity_group_mask_probability: 0.1
+    ungrouped_mask_probability: 0.05
+
+  targets:
+    all: true
+    present_in_q0: true
+    variables:
+    - "niq"
+    - "revtq"
+    - "cogsq"
+    - "oiadpq"
+    - "dpq"
+    - "gpq"
+    - "cheq"
+    - "ppentq"
+    - "ltq"
+    - "seqq"
+    - "dlttq"
+
+results_dir: "results/forecasts"
+stop_on_error: true
+
+models:
+  forma:
+    type: "forma"
+    forecast_name: "forma_lap05_fgrid"   # distinct {model} id -> own seed-mixture family in evaluate.py.
+    parameters:
+      n_layers: 4
+      d_model: 128
+      n_heads: 4
+      d_ff: 512
+      dropout: 0.2
+      lr: 1e-4
+      loss_type: 'laplace'
+      student_t_df: 6.0
+      weight_decay: 0.1
+      constraint_mode: 'none'
+      use_temporal_bias: false
+      use_same_account_bias: false
+      beta_nll: 0.5

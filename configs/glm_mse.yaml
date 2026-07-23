@@ -1,0 +1,153 @@
+# GLM benchmark config — MSE / L2 variant (companion to configs/glm.yaml).
+#
+# Identical to glm.yaml in every respect EXCEPT the GBM loss function:
+#   glm.yaml      -> objective: regression_l1  (MAE / L1; matches Geertsema, Lu, Ma 2026)
+#   glm_mse.yaml  -> objective: regression_l2  (MSE / L2)
+#
+# Why this exists: the paper trains its chained GBM on MAE, but every other model
+# in the Forma comparison (Forma, FFNN, ElasticNet, RF, OLS) optimizes squared
+# error / Gaussian NLL. An MAE-trained GBM is therefore disadvantaged on the R2
+# (squared-error) point-track metric and advantaged on MAE. This L2 variant gives
+# a like-for-like, squared-error-trained GBM so the loss-function effect is visible
+# and the point-track comparison is apples-to-apples. Run BOTH; report both.
+#
+# No code change is needed for L2: src/models/chained_gbm.py derives its
+# early-stopping / model-selection metric from `objective` (eval_metric = "l2" for
+# regression/regression_l2/mse/l2, else "l1"), so an L2 objective is selected on L2
+# validation error, not silently ranked on L1.
+#
+# Forecast collision avoidance: model_name is set to "chained_gbm_mse" so this
+# run's forecast file ({model}__{fs}__{split}__predictions.parquet) and its `model`
+# column stay distinct from the MAE run's "chained_gbm". Same dataset/regime, so it
+# pools/pairs cleanly against Forma's 28-target slice on the R13 truth tag.
+#
+# Naming: "GLM" = the paper/dataset side; "GBM" = the model. See configs/feature_sets.yaml.
+#
+# v2 (issue #236): reg chains pinned to R13's + new dataset_tag/model_name, in
+# lockstep with configs/glm.yaml — see its header for the full story.
+experiment:
+  name: "glm_mse_v2"
+  description: "GLM benchmark v2 MSE/L2 variant (r13 reg chains): chained GBM (regression_l2) on pf_full_glm features (GLM 2026 chain targets)"
+
+data:
+  feature_set: "pf_full_glm"
+  # R13 addendum: share R13's regime so this GBM benchmark is pairwise-comparable
+  # to the banked R13 Forma forecasts. Only the feature_set differs (pf_full_glm
+  # vs pf_full), so the suffixed build files coexist with R13's in
+  # data/processed/ with no collision. (The unsuffixed *_id_map.csv files are
+  # shared+append-only — snapshot before building.)
+  #
+  # NOTE the tag is NOT R13's: the v1 glm build already owns
+  # tabular_*__pf_full_glm__r13_node_optionD_indfe_val8.parquet and stays
+  # load-bearing (it reproduces the committed v1 GLM column bit-exactly), so the
+  # regfix build gets its own tag rather than overwriting it. Shared with
+  # glm.yaml — one build serves both variants.
+  dataset_tag: "r13_node_optionD_indfe_val8_regfix"
+  raw_path: "data/raw/compustat_with_permno.parquet"
+  processed_dir: "data/processed"
+  identities_path: "configs/identities.json"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 512
+  num_workers: 8
+  predict_batch_size: 512
+  use_future_grid: false
+
+  time_splits:
+    train_end_year: 2001   # match R13: moves both the split and the reg-stats cutoff (train 1971-2001)
+    val_end_year: 2009     # val 2002-2009 (8 yr); test 2010+ unchanged
+
+  firm_id_map_path: "data/processed/firm_id_map.csv"
+  account_id_map_path: "data/processed/account_id_map.csv"
+
+  # FF48 industry fixed-effect dummies on the tabular feature matrix (matches the
+  # industry-node Forma setup). Adds indff48_* one-hot columns via create_tabular_dataset.
+  tabular_industry_fe: true
+  industry_config_path: "configs/ff48_sic_ranges.json"
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    # Regularization chains pinned to R13's (the v2 fix, issue #236) — keep
+    # identical to configs/glm.yaml so both variants share one build.
+    reg_mu_scale_lag: 0
+    reg_mu_feature_lags: [0]
+    reg_sig_scale_lag: 4
+    reg_sig_feature_lags: [0, 8]
+    reg_k_scale_lag: 4
+    reg_k_feature_lags: [0, 8]
+    max_abs_zscore: 6.0
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+    forecast_horizon: 20
+    imputation:
+      use: true
+      n_factors: 10
+    tabular_min_coverage: 0.0
+
+  targets:
+    # Exactly the 28 chain items (of 29 core items in GLM 2026; iva dropped
+    # as unavailable in quarterly Compustat). sstkq, prstkcq, dvq are in the
+    # feature set only as raw inputs for computing neiq / dvcq, not as
+    # prediction targets.
+    all: false
+    present_in_q0: false
+    variables:
+      # Income statement (11)
+      - revtq
+      - cogsq
+      - xsgaq
+      - dpq
+      - xintq
+      - nopiq
+      - spiq
+      - txtq
+      - miiq
+      - xidoq
+      - dvpq
+      # Balance sheet (15)
+      - rectq
+      - invtq
+      - acoq
+      - ppentq
+      - intanq
+      - aoq
+      - dlcq
+      - apq
+      - txpq
+      - lcoq
+      - dlttq
+      - txditcq
+      - loq
+      - mibtq
+      - acomincq
+      # Computed (2)
+      - neiq
+      - dvcq
+
+results_dir: "results/forecasts"
+stop_on_error: true
+
+models:
+  chained_gbm:
+    type: "chained_gbm"
+    parameters:
+      # MSE / L2 loss (the only substantive difference from glm.yaml's regression_l1).
+      objective: "regression_l2"
+      # Distinct model_name: "_mse" vs the MAE run, "_v2" vs the superseded v1
+      # forecasts (filename = eval identity; rename at promote time if needed).
+      model_name: "chained_gbm_mse_v2"
+      verbose: -1
+      random_state: 42
+      early_stopping_patience: 10
+      n_estimators: 500
+      # Horizon-parallel worker cap. Each worker holds its own copy of the
+      # train+val feature matrices (~3GB here), so peak host RAM ~ max_workers x
+      # that. Tune to the host: 6 keeps a 32-core / 64GB box comfortable; raise
+      # on bigger-RAM machines, or set null to use min(n_horizons, cpu//2).
+      max_workers: 6
+      hyperparameter_grid:
+        num_leaves: [15, 31]

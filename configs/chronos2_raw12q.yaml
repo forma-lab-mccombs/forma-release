@@ -1,0 +1,101 @@
+# Chronos-2 zero-shot foundation-model benchmark, v2 -- RAW CONTEXT, FORMA PARITY.
+# Supersedes configs/chronos2_zeroshot.yaml (kept for provenance) after the v1
+# stress test (PR #197 discussion) found three comparability gaps:
+#
+#   1. v1 fed pre-regularized {acct}_level_0 z-scores; v2 feeds RAW account values
+#      from the tuple parquets (NaN gaps kept -- no cross-sectional imputation) and
+#      lets Chronos-2 apply its own trained normalization (context z-score + asinh).
+#   2. v1's context space drifted from the {acct}_t{h} label space (labels freeze
+#      scale/mu/sigma at the origin quarter; level_0 carries each quarter's own).
+#      v2 maps raw-space forecast quantiles through the EXACT origin-frozen label
+#      transform T_Q(v) = clip((asinh(k*v/scale_Q) - mu_Q)/sigma_Q, +/-6), so
+#      forecasts land in precisely the space evaluate.py scores.
+#   3. v1 gave Chronos up to 200 quarters of history vs Forma's max_lookback: 12.
+#      v2 caps max_context at 12 observations incl. the origin -- exactly Forma's
+#      [Q-11, Q] window -- so the information sets match.
+#
+# Loss-fair point forecasts: T_Q is nonlinear, so the target-space mean is
+# integrated over Chronos's 21 native quantile levels (L2/R2-fair point, primary
+# file 'chronos_raw'); the mapped median is written as a sibling file
+# 'chronos_raw_med' in the same GPU pass (L1/MAE-fair point -- compare against the
+# Laplace-loss Forma on MAE, the Gaussian-loss Forma on R2).
+#
+#   python -m forma.train --config configs/chronos2_raw12q.yaml --model-only chronos_raw --forecast-splits test
+experiment:
+  name: "chronos2_raw12q"
+  description: "Chronos-2 zero-shot v2: raw tuple context (12q, Forma parity), origin-frozen target-space outputs, mean+median point files."
+
+seed: 0
+
+inference:
+  reconcile: false
+  save_sigma: true             # raw (unfloored) Gaussian-equivalent sigma; floor is evaluate.py --sigma-floor.
+  seed_in_forecast_name: false # single zero-shot forecast -> 4-segment {model}__{fs}__{split} name.
+
+data:
+  feature_set: "pf_full"
+  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the R13 build; do NOT rebuild.
+  raw_path: "data/raw/compustat_with_permno.parquet"
+  processed_dir: "data/processed"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 32
+  num_workers: 8
+  predict_batch_size: 32
+  time_splits:
+    train_end_year: 2001   # train 1971-2001; val 2002-2009; test 2010+ (matches the R13 build).
+    val_end_year: 2009
+  firm_id_map_path: "data/processed/firm_id_map.csv"
+  account_id_map_path: "data/processed/account_id_map.csv"
+  industry_id_map_path: "data/processed/industry_id_map.csv"
+  industry_mode: "node"
+  tabular_industry_fe: true
+  no_cv: true
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    forecast_horizon: 20
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+
+  targets:
+    all: true
+    present_in_q0: true
+    variables:
+    - "niq"
+    - "revtq"
+    - "cogsq"
+    - "oiadpq"
+    - "dpq"
+    - "gpq"
+    - "cheq"
+    - "ppentq"
+    - "ltq"
+    - "seqq"
+    - "dlttq"
+
+results_dir: "results/forecasts"
+stop_on_error: true
+
+models:
+  chronos_raw:
+    type: "chronos_raw"
+    parameters:
+      model_id: "amazon/chronos-2"      # Apache-2.0; requires the Chronos-2 pipeline (NaN masking + list API).
+      device: "auto"                     # cuda if available, else cpu.
+      torch_dtype: "auto"                # bf16 on cuda, fp32 on cpu.
+      sigma_method: "grid"               # moment-matched sigma from the full 21-level quantile grid (pre-clip, written raw/unfloored).
+      sigma_quantile_pair: [0.1, 0.9]    # used only when sigma_method: "pair" (v1 convention; 2 of 21 levels).
+      max_context: 12                    # Forma parity: 12 observations incl. origin ([Q-11, Q]).
+      batch_size: 256                    # firm-origins (2-D groups) per pipeline call.
+      forecast_horizon: 20
+      point_stat: "mean"                 # primary file point: target-space mean (L2/R2-fair).
+      write_median_sibling: true         # also write chronos_raw_med (median point, L1/MAE-fair) in the same pass.
+      save_quantiles: true               # issue #246: persist the 21 native levels to a __quantiles.parquet sibling.
+      max_abs_zscore: 6.0                # match the r13 build's label clip (configs/r13_*: max_abs_zscore: 6.0).
+      # processed_dir / dataset_suffix / map paths are derived from the data module;
+      # override here only if benchmarking against a different build.

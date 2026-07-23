@@ -1,0 +1,144 @@
+# GLM benchmark config (Geertsema, Lu, Ma 2026): runs the chained GBM *model*
+# on the GLM chain-target set. Naming convention: "GLM" = the paper/dataset side
+# (this benchmark, the glm + pf_full_glm feature sets, the 28-item chain-target
+# set); "GBM" = the model only (ChainedGBMModel). See configs/feature_sets.yaml.
+#
+# v2 (issue #236): the v1 build omitted the six reg_{mu,sig,k}_* knobs, so its
+# dataset was regularized with REG_STATS_DEFAULTS instead of the R13 chains —
+# the glm truth diverged from the r13 pf_full truth on every shared target and
+# the GLM column was scored in the GBM's home normalization. v2 pins the R13
+# chains and rebuilds under a new dataset_tag; v1 artifacts are kept untouched
+# to reproduce the committed (superseded) numbers.
+#
+# Feature/target decoupling: features come from the full pf_full_glm union
+# (pf_full inputs + the glm chain items), while targets are restricted to the
+# 28 GLM chain items below (targets.all:false + explicit variables). The chained
+# GBM model's hardwired chain_order already matches these 28 items, so it
+# forecasts the GLM chain while seeing the richer pf_full feature matrix as inputs.
+experiment:
+  name: "glm_v2"
+  description: "GLM benchmark v2 (r13 reg chains): chained GBM model on pf_full_glm features (GLM 2026 chain targets)"
+
+data:
+  feature_set: "pf_full_glm"
+  # R13 addendum: share R13's regime so this GBM benchmark is pairwise-comparable
+  # to the banked R13 Forma forecasts. Only the feature_set differs (pf_full_glm
+  # vs pf_full), so the suffixed build files coexist with R13's in
+  # data/processed/ with no collision. (The unsuffixed *_id_map.csv files are
+  # shared+append-only — snapshot before building.)
+  #
+  # NOTE the tag is NOT R13's: the v1 glm build already owns
+  # tabular_*__pf_full_glm__r13_node_optionD_indfe_val8.parquet and stays
+  # load-bearing (it reproduces the committed v1 GLM column bit-exactly), so the
+  # regfix build gets its own tag rather than overwriting it.
+  dataset_tag: "r13_node_optionD_indfe_val8_regfix"
+  raw_path: "data/raw/compustat_with_permno.parquet"
+  processed_dir: "data/processed"
+  identities_path: "configs/identities.json"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 512
+  num_workers: 8
+  predict_batch_size: 512
+  use_future_grid: false
+
+  time_splits:
+    train_end_year: 2001   # match R13: moves both the split and the reg-stats cutoff (train 1971-2001)
+    val_end_year: 2009     # val 2002-2009 (8 yr); test 2010+ unchanged
+
+  firm_id_map_path: "data/processed/firm_id_map.csv"
+  account_id_map_path: "data/processed/account_id_map.csv"
+
+  # FF48 industry fixed-effect dummies on the tabular feature matrix (matches the
+  # industry-node Forma setup). Adds indff48_* one-hot columns via create_tabular_dataset.
+  tabular_industry_fe: true
+  industry_config_path: "configs/ff48_sic_ranges.json"
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    # Regularization chains pinned to R13's (the v2 fix, issue #236). v1 omitted
+    # these six knobs and silently fell back to REG_STATS_DEFAULTS (all chains
+    # scale_lag=0, feature_lags=[8]), producing a truth normalization that
+    # disagrees with the r13 pf_full truth on every shared target.
+    reg_mu_scale_lag: 0
+    reg_mu_feature_lags: [0]
+    reg_sig_scale_lag: 4
+    reg_sig_feature_lags: [0, 8]
+    reg_k_scale_lag: 4
+    reg_k_feature_lags: [0, 8]
+    max_abs_zscore: 6.0
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+    forecast_horizon: 20
+    imputation:
+      use: true
+      n_factors: 10
+    tabular_min_coverage: 0.0
+
+  targets:
+    # Exactly the 28 chain items (of 29 core items in GLM 2026; iva dropped
+    # as unavailable in quarterly Compustat). sstkq, prstkcq, dvq are in the
+    # feature set only as raw inputs for computing neiq / dvcq, not as
+    # prediction targets.
+    all: false
+    present_in_q0: false
+    variables:
+      # Income statement (11)
+      - revtq
+      - cogsq
+      - xsgaq
+      - dpq
+      - xintq
+      - nopiq
+      - spiq
+      - txtq
+      - miiq
+      - xidoq
+      - dvpq
+      # Balance sheet (15)
+      - rectq
+      - invtq
+      - acoq
+      - ppentq
+      - intanq
+      - aoq
+      - dlcq
+      - apq
+      - txpq
+      - lcoq
+      - dlttq
+      - txditcq
+      - loq
+      - mibtq
+      - acomincq
+      # Computed (2)
+      - neiq
+      - dvcq
+
+results_dir: "results/forecasts"
+stop_on_error: true
+
+models:
+  chained_gbm:
+    type: "chained_gbm"
+    parameters:
+      objective: "regression_l1"
+      # v2 model_name so forecasts never collide with the superseded v1 run's
+      # "chained_gbm" files (filename = eval identity; rename at promote time if
+      # the paper wants the clean label back).
+      model_name: "chained_gbm_v2"
+      verbose: -1
+      random_state: 42
+      early_stopping_patience: 10
+      n_estimators: 500
+      # Horizon-parallel worker cap. Each worker holds its own copy of the
+      # train+val feature matrices (~3GB here), so peak host RAM ~ max_workers x
+      # that. Tune to the host: 6 keeps a 32-core / 64GB box comfortable; raise
+      # on bigger-RAM machines, or set null to use min(n_horizons, cpu//2).
+      max_workers: 6
+      hyperparameter_grid:
+        num_leaves: [15, 31]

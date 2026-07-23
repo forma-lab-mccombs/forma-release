@@ -1,0 +1,21 @@
+Forma (forma-release)
+Copyright 2026 The ProForma-20Q Authors
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this software except in compliance with the License. You may obtain a copy of
+the License at http://www.apache.org/licenses/LICENSE-2.0
+
+This repository releases the model code, configurations, and trained Forma
+checkpoints for the ProForma-20Q benchmark, plus code and configurations for the
+competitor models. Scoring is performed by the companion package `proforma-20q`.
+
+This product includes the Fama-French 48 industry SIC classification derived
+from the Kenneth R. French Data Library.
+
+The Chronos-2 driver uses the `amazon/chronos-2` foundation model (Apache-2.0),
+downloaded from the Hugging Face Hub at runtime; no Chronos weights are
+distributed here.
+
+NO DATA IS DISTRIBUTED. WRDS / Compustat / CRSP credentials and license are the
+user's responsibility; see README.md. Reproduction on real data requires
+building the ProForma-20Q dataset with the companion package.
