@@ -177,6 +177,8 @@ def predict_one(config_path: Path, checkpoint: Path, data_dir: Path, out_dir: Pa
 def _validate(fpath: Path) -> None:
     """Run `proforma20q validate` on a produced forecast (acceptance gate 14.3a)."""
     import subprocess
+    from forma._deps import require_proforma20q
+    require_proforma20q("--validate")
     print(f"  validating {fpath.name} against the ProForma-20Q schema ...")
     r = subprocess.run([sys.executable, "-m", "proforma20q.cli", "validate", str(fpath)],
                        capture_output=True, text=True)
@@ -208,6 +210,16 @@ def main() -> int:
     ap.add_argument("--validate", action="store_true",
                     help="Run `proforma20q validate` on each produced forecast.")
     args = ap.parse_args()
+
+    # Inference itself does not import the benchmark package, but the forecasts
+    # this produces are only useful once scored with it -- so say so up front
+    # rather than letting the reviewer discover it after a long run.
+    from forma._deps import require_proforma20q, warn_if_missing
+    if args.validate:
+        require_proforma20q("--validate")
+    else:
+        warn_if_missing("scoring the forecasts this produces "
+                        "(`proforma20q evaluate`)")
 
     if args.family:
         produced = []
