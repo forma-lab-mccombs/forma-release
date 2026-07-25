@@ -10,6 +10,30 @@ This repo is **inference-first**: a reviewer goes checkpoint → forecast parque
 Real-data reproduction requires WRDS/Compustat credentials and the companion
 package's dataset build.
 
+**Verified:** the shipped checkpoints are bit-identical to the originals, and the
+canonical artifacts reproduce Panel A (**R² 0.289**, exact to 17 significant
+figures) and Panel C (**NLL 0.160 / CRPS 0.293**) on the published
+327,244,429-cell sample. Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
+
+## Division of labour with the benchmark package
+
+`proforma-20q` is **authoritative** for the dataset build, the submission schema,
+point metrics (Table 1 Panels A/B), and the reference baselines. This repo adds
+only what the benchmark does not yet cover:
+
+- the Forma model, its trained weights, and the competitor code/configs;
+- the **exact 5-seed mixture** density scores (Panel C) — `scripts/mixture_calibration.py`
+  plus the streaming slice in `forma.scoring`;
+- the **Diebold-Mariano** significance machinery — `scripts/dm_tests.py`.
+
+The mixture/PIT/DM pieces are extensions the benchmark package explicitly plans
+to absorb (`proforma20q/evaluate.py`: *"port them here once they land, tracking
+the main repo rather than forking"*); they will be upstreamed after submission,
+at which point this repo drops its scoring slice entirely.
+
+Pin the benchmark at **`4f5a1df`** to reproduce the recorded numbers — scores are
+only comparable against a fixed evaluator version.
+
 ## Install
 
 Both packages are source installs (neither is on PyPI):
@@ -60,6 +84,15 @@ from the benchmark repo / archival release). Point metrics are scored by
 | **Table 1 — LLM column** | pin the sample (no spend): `python scripts/llm/llm_benchmark.py --build-origins-only --source tuples --present-in-q0 --sample-mode var-block --n-firms 133 --min-block 4 --max-block 20 --seed 20260615 --noise-subset-size 200 --data-dir <data-root> --feature-set pf_full --dataset r13_node_optionD_indfe_val8` (verify fingerprint `5715abbe3f9f5c3f`), then run each arm/model: `… --origins-file <origins.csv> --expect-origins-sha 5715abbe3f9f5c3f --prompt-version {unstructured,structured} --model {claude-opus-4-8,claude-sonnet-5,gpt-5.5} --batch` |
 | **Table 1 — Naive / Fade / ElasticNet** | `proforma20q baselines --which naive,fade,elasticnet` (reference baselines shipped by the benchmark package) |
 | **T1 / F1 Diebold-Mariano stars** | `python scripts/dm_tests.py --exp_dir <pool> --reference forma_fgrid__pf_full` (quarter-clustered, Newey-West h−1, HLN-corrected) |
+
+> ⚠️ **Scoring a full-scale forecast.** `proforma20q evaluate` reads the whole
+> submission into memory, and its validation materializes a fixed-width unicode
+> array over every row — on a complete `pf_full` forecast (472,695,966 rows) that
+> needs tens of GB and fails on ordinary hardware
+> ([proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12)).
+> Until that fix lands, score full-sample forecasts with the streaming evaluator:
+> `python -m forma.scoring.evaluate --exp_dir <pool> --splits test`. The two
+> implementations agree (see [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) §6).
 
 The LLM column uses **regeneration-pinned** origins: the exact 2,103-origin
 sample is regenerated from seed `20260615` and verified against fingerprint
