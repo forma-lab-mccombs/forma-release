@@ -3,9 +3,14 @@
 # parquets. Only code, configs, the small checkpoint-coupled id maps, and the
 # Forma checkpoints live in the repo.
 # ---------------------------------------------------------------------------
-data/
-results/
-forecasts/
+# Anchored to the repo root ON PURPOSE. An unanchored `data/` also matches the
+# package's own `src/forma/data/` subpackage, which silently kept the tuple
+# dataset, transforms and config helpers out of the repo -- a clone could not
+# even import the model. The extension globs below are the real guard against
+# WRDS-derived content: they apply at any depth regardless of directory name.
+/data/
+/results/
+/forecasts/
 *.parquet
 *.csv
 
