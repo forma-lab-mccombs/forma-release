@@ -48,6 +48,24 @@ with the Full-sample mask.
 
 Paper Panel A headline **Forma 0.289** ✓.
 
+### FFNN rows, scored in the same pool
+
+The Full column is an **intersection across models**, and `forma_fgrid` is its
+binding constraint — so the FFNN rows only reproduce when scored in a pool that
+contains Forma. Pooling the two FFNN 5-seed mixtures (`r13_ffnn_{linear,large}_betanll_mix5`,
+commit `194b67c`) with the Forma mixture:
+
+| model | R² | published | MAE | published |
+|---|---|---|---|---|
+| `forma_fgrid` | 0.28917237380438254 | 0.289 | 0.4084936810118555 | 0.408 |
+| **`ffnn_linear_b50`** | **0.2528736009805014** | 0.253 | **0.44228160832978064** | 0.4423 |
+| **`ffnn_large_b50`** | **0.24705595722332863** | 0.247 | **0.4523003669712947** | 0.4523 |
+
+All three report `n_complete_rows = 327,244,429`, and Forma's R² is **bit-identical**
+to its single-model run above — an empirical confirmation of the coverage claim
+that every other full-coverage model is a superset of Forma's footprint, so
+adding models leaves the intersection (and every published number) unmoved.
+
 ## 3. Table 1 Panel C — density track (Laplace, exact 5-seed mixture)
 
 Artifact: the five `forma_lap05_fgrid` per-seed forecasts (commit `25b3c16`)
@@ -135,9 +153,11 @@ time of that run — the agreement is the point, not the values.)
 
 ## 7. Scope — what is *not* covered here
 
-- **FFNN (0.253 / 0.247) and chained-GBM Table-1 rows.** Their weights are not
-  shipped (see README); the original forecast parquets that produced those rows
-  land in the on-publication archival release. Not re-scored in this run.
+- **Chained-GBM Table-1 rows.** Not re-scored. Their weights are not shipped and
+  the GBM column additionally needs the `pf_full_glm` build, which
+  `proforma20q build` does not produce. (The FFNN rows *were* verified — §2.)
+  The original forecast parquets that produced these rows land in the
+  on-publication archival release.
 - **Regeneration of forecasts from the shipped checkpoints.** Inference was
   measured at ~27.5 s/batch × 11,896 batches ≈ 91 h per seed on the CPU-only
   machine used here (no CUDA), i.e. ~19 days for the 5-seed family — it needs

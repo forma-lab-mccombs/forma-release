@@ -11,9 +11,10 @@ Real-data reproduction requires WRDS/Compustat credentials and the companion
 package's dataset build.
 
 **Verified:** the shipped checkpoints are bit-identical to the originals, and the
-canonical artifacts reproduce Panel A (**R² 0.289**, exact to 17 significant
-figures) and Panel C (**NLL 0.160 / CRPS 0.293**) on the published
-327,244,429-cell sample. Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
+canonical artifacts reproduce Panel A — Forma **R² 0.289** (exact to 17
+significant figures) and the FFNN rows **0.253 / 0.247** — plus Panel C
+(**NLL 0.160 / CRPS 0.293**), all on the published 327,244,429-cell sample.
+Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
 
 ## Division of labour with the benchmark package
 
