@@ -61,10 +61,25 @@ regularization stats so the eval space matches the paper:
 proforma20q build --wrds-user <you> --reg-stats canonical   # -> data/processed/...
 ```
 
-This produces the `tuple_test`, `regularization_stats`, and `firm_id_map` the
-Forma inference path reads. The checkpoint-coupled `account_id_map` /
-`industry_id_map` ship **in this repo** (`src/forma/metadata/`) and are used at
-inference regardless of the build, so the trained embeddings are never permuted.
+This produces the `tuple_test` and `regularization_stats` the Forma inference
+path reads. The checkpoint-coupled `account_id_map` / `industry_id_map` ship
+**in this repo** (`src/forma/metadata/`) and are used at inference regardless of
+the build, so the trained embeddings are never permuted.
+
+> **One gap to know about.** The build also needs to hand you a `firm_id_map.csv`
+> — the int→gvkey table that turns the tuple view's integer firm ids into the
+> identifiers a submission requires — but `proforma20q build` currently computes
+> it and discards it
+> ([proforma-20q#13](https://github.com/ANONYMIZED/proforma-20q/issues/13)).
+> Until that fix lands, rebuild it from the raw panel; `predict_forma.py` derives
+> it with the build's own rule and verifies it against the tuple view before use:
+>
+> ```bash
+> python scripts/predict_forma.py --family forma_fgrid --data-dir <build> \
+>     --derive-firm-map-from-raw <build>/../raw/compustat_with_permno.parquet
+> ```
+>
+> Pass `--firm-map <path>` instead if you already have one.
 
 ## Reproduction map
 

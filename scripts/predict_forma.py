@@ -117,8 +117,84 @@ def _assert_id_maps(checkpoint: Path, data_dir: Path) -> tuple[Path, Path]:
     return acc_path, ind_path
 
 
+def _derive_firm_map(raw_path: Path, data_dir: Path) -> Path:
+    """Reconstruct ``firm_id_map.csv`` using the build's own rule, then verify it.
+
+    ``proforma20q build`` computes this map and discards it (upstream issue #13),
+    which leaves the tuple view's integer ``firm_id`` unmappable to the gvkey
+    strings the submission schema requires. The rule is deterministic --
+    ``{gvkey: i for i, gvkey in enumerate(sorted(unique gvkeys))}`` over the raw
+    panel -- so it can be rebuilt exactly.
+
+    Deriving identifiers is exactly the kind of step that fails silently, so the
+    result is checked against the tuple view before it is used: every integer id
+    present in ``tuple_test`` must fall inside the derived map. A mismatch means
+    the raw panel is not the one this build came from, and we refuse rather than
+    emit forecasts under wrong firm identifiers.
+    """
+    import pandas as pd
+
+    if not raw_path.exists():
+        sys.exit(f"ERROR: raw panel not found: {raw_path}")
+    print(f"  deriving firm_id_map from {raw_path.name} (upstream issue #13) ...")
+    raw = pd.read_parquet(raw_path, columns=["gvkey"], engine="fastparquet")
+    gvkeys = sorted(raw["gvkey"].astype(str).unique())
+    out = pd.DataFrame({"firm_id_int": range(len(gvkeys)), "firm_id": gvkeys})
+
+    tuples = sorted(data_dir.glob("tuple_test__*.parquet"))
+    if tuples:
+        from fastparquet import ParquetFile
+        pf = ParquetFile(str(tuples[0]))
+        seen_max = -1
+        for chunk in pf.iter_row_groups(columns=["firm_id"]):
+            seen_max = max(seen_max, int(chunk["firm_id"].max()))
+        if seen_max >= len(out):
+            sys.exit(
+                f"ERROR: derived firm map has {len(out):,} entries but "
+                f"{tuples[0].name} references id {seen_max:,}. The raw panel does "
+                f"not match this build, so the mapping would assign wrong gvkeys. "
+                f"Point --derive-firm-map-from-raw at the panel this build used."
+            )
+        print(f"  verified: {len(out):,} firms cover tuple ids 0..{seen_max:,}")
+    else:
+        print("  WARNING: no tuple_test found to verify the derived map against.")
+
+    dest = data_dir / "firm_id_map.csv"
+    try:
+        out.to_csv(dest, index=False)
+    except OSError as e:
+        sys.exit(f"ERROR: could not write {dest} ({e}). Supply --firm-map instead.")
+    print(f"  wrote {dest}")
+    return dest
+
+
+def _resolve_firm_map(data_dir: Path, explicit: Path | None,
+                      derive_from_raw: Path | None) -> Path:
+    """Locate the int->gvkey map, with an actionable message when it is absent."""
+    if explicit is not None:
+        if not explicit.exists():
+            sys.exit(f"ERROR: --firm-map not found: {explicit}")
+        return explicit
+    existing = data_dir / "firm_id_map.csv"
+    if existing.exists():
+        return existing
+    if derive_from_raw is not None:
+        return _derive_firm_map(derive_from_raw, data_dir)
+    sys.exit(
+        f"ERROR: {data_dir / 'firm_id_map.csv'} is missing.\n"
+        f"`proforma20q build` computes this map but does not write it out "
+        f"(upstream issue #13), and without it the tuple view's integer firm ids "
+        f"cannot be turned into the gvkey strings a submission needs.\n"
+        f"Either:\n"
+        f"  * pass --firm-map <path> if you already have one, or\n"
+        f"  * pass --derive-firm-map-from-raw <compustat panel>.parquet to "
+        f"rebuild it (verified against the tuple view before use)."
+    )
+
+
 def predict_one(config_path: Path, checkpoint: Path, data_dir: Path, out_dir: Path,
-                validate: bool) -> Path:
+                validate: bool, firm_map: Path | None = None,
+                derive_firm_map_from_raw: Path | None = None) -> Path:
     from forma.train import create_data_module, generate_predictions, load_config
     from forma.models.forma import FormaModel
 
@@ -135,15 +211,11 @@ def predict_one(config_path: Path, checkpoint: Path, data_dir: Path, out_dir: Pa
     # Force the checkpoint-coupled maps; take firm map + identities from repo/build.
     dcfg["account_map_path"] = str(acc_path)
     dcfg["industry_id_map_path"] = str(ind_path)
-    dcfg["firm_id_map_path"] = str(data_dir / "firm_id_map.csv")
+    dcfg["firm_id_map_path"] = str(
+        _resolve_firm_map(data_dir, firm_map, derive_firm_map_from_raw))
     dcfg["identities_path"] = str(REPO_ROOT / "configs" / "identities.json")
     config["forecast_splits"] = ["test"]
     config.setdefault("results_dir", str(out_dir))
-
-    # Pre-flight: the build dir must carry the inputs FormaDataModule.setup() needs.
-    for needed in ("firm_id_map.csv",):
-        if not (data_dir / needed).exists():
-            sys.exit(f"ERROR: {data_dir/needed} missing (from `proforma20q build`).")
 
     # Build the data module directly so account_map_path is the SHIPPED map
     # (create_data_module would instead derive it from the build dir).
@@ -209,6 +281,14 @@ def main() -> int:
     ap.add_argument("--checkpoints-dir", type=Path, default=REPO_ROOT / "checkpoints")
     ap.add_argument("--validate", action="store_true",
                     help="Run `proforma20q validate` on each produced forecast.")
+    ap.add_argument("--firm-map", type=Path, default=None,
+                    help="Explicit int->gvkey firm_id_map.csv. Default: the one in "
+                         "--data-dir.")
+    ap.add_argument("--derive-firm-map-from-raw", type=Path, default=None,
+                    metavar="RAW.PARQUET",
+                    help="If the build has no firm_id_map.csv (upstream issue #13), "
+                         "rebuild it from the raw Compustat panel using the build's "
+                         "own rule. Verified against the tuple view before use.")
     args = ap.parse_args()
 
     # Inference itself does not import the benchmark package, but the forecasts
@@ -227,7 +307,9 @@ def main() -> int:
             cfg = args.configs_dir / FAMILIES[args.family].format(seed=seed)
             ckpt = args.checkpoints_dir / f"{args.family}_seed{seed}.ckpt"
             print(f"[{args.family} seed {seed}]")
-            produced.append(predict_one(cfg, ckpt, args.data_dir, args.out, args.validate))
+            produced.append(predict_one(cfg, ckpt, args.data_dir, args.out, args.validate,
+                                        firm_map=args.firm_map,
+                                        derive_firm_map_from_raw=args.derive_firm_map_from_raw))
         print(f"\nProduced {len(produced)} per-seed forecasts for {args.family}.")
         print("Combine into the 5-seed mixture with:")
         print(f"  python scripts/group_seed_forecasts.py --materialize "
@@ -236,7 +318,9 @@ def main() -> int:
 
     if not args.config or not args.checkpoint:
         ap.error("provide --family, or both --config and --checkpoint")
-    predict_one(args.config, args.checkpoint, args.data_dir, args.out, args.validate)
+    predict_one(args.config, args.checkpoint, args.data_dir, args.out, args.validate,
+                firm_map=args.firm_map,
+                derive_firm_map_from_raw=args.derive_firm_map_from_raw)
     return 0
 
 
