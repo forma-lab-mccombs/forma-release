@@ -922,7 +922,7 @@ def main():
 
     if exp_dir and not exp_dir.exists():
         print(f"Error: Experiment directory {exp_dir} does not exist.")
-        return
+        return 1
 
     forecasts_dir = exp_dir / 'forecasts' if exp_dir else Path('results/forecasts')
     metrics_base_dir = exp_dir / 'metrics' if exp_dir else Path('results/metrics')
@@ -953,13 +953,13 @@ def main():
     feature_sets = discover_feature_sets(forecasts_dir, args.feature_set, splits_to_evaluate)
     if not feature_sets:
         print("No valid forecast files found. Exiting.")
-        return
+        return 1
 
     # Optional filtering (defensive check if filters above returned no matching set)
     if args.feature_set:
         if args.feature_set not in feature_sets:
             print(f"No forecasts found for feature_set={args.feature_set}. Exiting.")
-            return
+            return 1
         feature_sets = [args.feature_set]
 
     # make a dictionary from feature_set -> ground truth path (for test split, used for filtering)
@@ -976,7 +976,7 @@ def main():
             example_fs = feature_sets[0]
             expected = processed_dir / f"tabular_test__{example_fs}.parquet"
             print(f"Expected ground truth like: {expected}")
-        return
+        return 1
 
     # Track per-split eval failures across every feature_set/split so the process
     # can exit non-zero at the end. The per-split try/except below deliberately
@@ -1047,4 +1047,4 @@ def main():
     print("\nAll evaluations complete.")
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

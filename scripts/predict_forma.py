@@ -21,9 +21,13 @@ Whole family (5 seeds -> per-seed parquets; combine with group_seed_forecasts.py
 
 The ProForma-20Q build directory must be the canonical R13 build
 (``proforma20q build`` against the frozen canonical regularization stats): it
-supplies ``tuple_test``, ``regularization_stats__*``, and ``firm_id_map.csv``.
-The account/industry id maps are taken from THIS repo (they are coupled to the
-shipped checkpoints — see below), never from the build.
+supplies ``tuple_test`` and ``regularization_stats__*``.
+
+It does NOT supply ``firm_id_map.csv`` -- the build computes that map and
+discards it (upstream proforma-20q issue #13) -- so pass either ``--firm-map``
+or ``--derive-firm-map-from-raw``; without one of them this script stops and
+says so. The account/industry id maps are taken from THIS repo (they are
+coupled to the shipped checkpoints, see below), never from the build.
 """
 from __future__ import annotations
 
@@ -62,7 +66,7 @@ def _assert_id_maps(checkpoint: Path, data_dir: Path) -> tuple[Path, Path]:
 
     The account/industry categorical->embedding-index maps are baked into the
     trained embeddings. If inference uses a *different* ordering (e.g. one a
-    fresh build derived from data ordering), every forecast is silently wrong —
+    fresh build derived from data ordering), every forecast is silently wrong --
     no error, plausible-looking numbers. So we:
 
       (a) verify the shipped maps' sizes equal the checkpoint's embedding dims;

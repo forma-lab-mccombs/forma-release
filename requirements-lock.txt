@@ -1,0 +1,28 @@
+# Pinned DIRECT dependencies of the forma-release core, at the exact versions
+# used to produce the numbers recorded in docs/ACCEPTANCE.md (see its §8).
+#
+# Scope, stated honestly: these are direct pins, NOT a hash-locked transitive
+# closure -- indirect dependencies still resolve freely, so this reproduces the
+# recorded environment closely but not bit-exactly. It exists because
+# pyproject.toml's ranges otherwise let a reviewer land on a different pandas
+# MAJOR version than the one behind the published digits.
+#
+#     pip install -r requirements-lock.txt
+#     pip install -e . --no-deps
+#
+# torch is pinned to the CPU build actually used; on a CUDA machine install the
+# matching CUDA wheel instead (the recorded numbers are scoring results, not
+# inference outputs, so the accelerator does not affect them).
+numpy==2.4.2
+pandas==2.2.3
+scipy==1.17.1
+PyYAML==6.0.3
+fastparquet==2025.12.0
+pyarrow==23.0.1
+tqdm==4.67.3
+torch==2.10.0
+lightning==2.6.1
+torch-geometric==2.7.0
+
+# Test runner (the [dev] extra).
+pytest==9.0.2

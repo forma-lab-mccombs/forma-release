@@ -51,6 +51,36 @@ pip install -e '/path/to/forma-release[llm]'         # LLM benchmark harness
 The core install is **Forma inference only** (torch / lightning / torch-geometric);
 the competitor, Chronos, and LLM paths pull their own stacks via the extras above.
 
+### Verify the install
+
+```bash
+pip install -e '/path/to/forma-release[dev]'   # adds pytest
+python -m pytest tests/ -q                     # expect: 77 passed
+```
+
+The suite needs no credentials, no GPU, and no downloads. It covers the scoring
+math (CRPS, mixture CRPS, mixture NLL — checked against quadrature, Monte-Carlo
+and closed-form reductions), the LLM harness, the id-map guards, and a
+**synthetic end-to-end pipeline test** that builds a small synthetic panel with
+the companion package, runs Forma inference on it, and validates the output
+against the submission schema. If that one passes, the plumbing works.
+
+### Reproducing the recorded environment
+
+The published numbers in [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) were produced
+with the versions pinned in [`requirements-lock.txt`](requirements-lock.txt):
+
+```bash
+pip install -r requirements-lock.txt
+pip install -e . --no-deps
+```
+
+`pyproject.toml` deliberately keeps runtime ranges loose (with upper bounds only
+at the next major) so the package installs on a current scientific-Python stack —
+CI exercises it on considerably newer releases than the lockfile. Use the
+lockfile when you want the exact environment behind the recorded digits; use the
+plain install for everything else.
+
 ## Data prerequisite
 
 All real-data commands consume a canonical ProForma-20Q build. Build it once with
@@ -90,8 +120,8 @@ from the benchmark repo / archival release). Point metrics are scored by
 
 | Paper exhibit | Command |
 |---|---|
-| **Table 1 Panel A — Forma (Gaussian)** | `python scripts/predict_forma.py --family forma_fgrid --data-dir <build>` → `python scripts/group_seed_forecasts.py --materialize --arm forma_fgrid ...` → `proforma20q evaluate forma_fgrid__pf_full__test__predictions.parquet --against baselines --sample-mask <mask>` (Forma **0.289**) |
-| **Table 1 Panel B — Forma (Laplace)** | `python scripts/predict_forma.py --family forma_lap05_fgrid --data-dir <build>` → materialize → `proforma20q evaluate … --sample-mask <mask>` |
+| **Table 1 Panel A — Forma (Gaussian)** | `python scripts/predict_forma.py --family forma_fgrid --data-dir <build>` → `python scripts/group_seed_forecasts.py --src <per-seed dir> --dest <pool>/forecasts --arm forma_fgrid 'forma_fgrid__pf_full__6*__test__predictions.parquet' --materialize` → `proforma20q evaluate forma_fgrid__pf_full__test__predictions.parquet --against baselines --sample-mask <mask>` (Forma **0.289**) |
+| **Table 1 Panel B — Forma (Laplace)** | `python scripts/predict_forma.py --family forma_lap05_fgrid --data-dir <build>` → materialize (as above) → `proforma20q evaluate … --sample-mask <mask>` |
 | **Table 1 Panel C — mixture density** | `python scripts/mixture_calibration.py --exp_dir <lik_pool> --family forma_lap05_fgrid --seeds 60,61,62,63,64 --out results/panels` (Laplace **NLL 0.160 / CRPS 0.293**); Gaussian NLL 0.660 via `--family forma_fgrid`. Exact mixture NLL is emitted by `proforma20q`/`forma.scoring.evaluate` over the per-seed pool. |
 | **Table 1 — FFNN (linear / large)** | `python scripts/predict_ffnn.py --variant linear` (and `large`) → materialize → `proforma20q evaluate … --sample-mask <mask>` (Full R² **0.253 / 0.247**). Weights are not shipped; forecasts regenerate from the configs (seeds 60–64). |
 | **Table 1 — Random Forest** | `python scripts/regen_rf.py` → `proforma20q evaluate …` (GPU/cuML; see script header) |
@@ -109,6 +139,19 @@ from the benchmark repo / archival release). Point metrics are scored by
 > Until that fix lands, score full-sample forecasts with the streaming evaluator:
 > `python -m forma.scoring.evaluate --exp_dir <pool> --splits test`. The two
 > implementations agree (see [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) §6).
+
+The two prompt arms ship **byte-exact**; verify them before trusting a rerun.
+`.gitattributes` marks them `-text` so no checkout rewrites their bytes:
+
+| arm | file | bytes | file md5 | `system_prompt_sha` logged at runtime |
+|---|---|---|--:|---|
+| unstructured | `scripts/llm/prompts/system_prompt_unstructured.txt` | 11,343 | `499ccefd14d2d5509397b502f925214f` | `c6134074fe6482061e0def95c9e74e3e1800af9b258774e63e7e47fb4b4567c7` |
+| structured | `scripts/llm/prompts/system_prompt_structured.txt` | 13,450 | `1a0ac1edf6c99a73aa81410a2afb9f65` | `d6ad507502c829432bbb78d8ce807d147d07f5d8ac114d43df830e7bd7431803` |
+
+The two digests differ by design: the md5 covers the file on disk, while the
+sha256 the harness records in each run's metadata is taken over the *loaded*
+prompt (trailing whitespace stripped), so it is the one to match against an
+archived run.
 
 The LLM column uses **regeneration-pinned** origins: the exact 2,103-origin
 sample is regenerated from seed `20260615` and verified against fingerprint

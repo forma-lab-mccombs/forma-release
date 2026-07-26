@@ -32,17 +32,23 @@ classifiers = [
 # `proforma-20q`, which is a SOURCE install (not on PyPI):
 #     pip install -e /path/to/proforma-20q
 # See README "Install".
+#
+# Ranges stay deliberately wide (CI exercises considerably newer releases than
+# the lockfile) but every one carries an upper bound at the next MAJOR: without
+# them a reviewer following this file silently lands on a different pandas major
+# than the one behind the published digits. `requirements-lock.txt` pins the
+# exact recorded environment when that matters.
 dependencies = [
-    "numpy",
-    "pandas",
-    "scipy>=1.10",
-    "pyyaml",
-    "fastparquet",
-    "pyarrow",
-    "tqdm",
-    "torch",
-    "lightning",
-    "torch-geometric",
+    "numpy>=2,<3",
+    "pandas>=2.2,<4",
+    "scipy>=1.10,<2",
+    "pyyaml>=6,<7",
+    "fastparquet>=2024.2",
+    "pyarrow>=15",
+    "tqdm>=4.60",
+    "torch>=2.4,<3",
+    "lightning>=2.2,<3",
+    "torch-geometric>=2.5,<3",
 ]
 
 [project.optional-dependencies]

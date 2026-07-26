@@ -21,15 +21,30 @@ Re-serialization is a corruption risk, so it was checked directly rather than
 inferred: for each checkpoint, every `state_dict` tensor was compared against
 its original.
 
-| check | result |
-|---|---|
-| tensors compared | 62 / 62 per checkpoint, all 10 checkpoints |
-| `torch.equal` on every tensor | **True — bit-identical to the originals** |
-| parameters per checkpoint | 942,275 (942,210 trainable + 65 buffer elements) |
-| reload under the shipped code | `FormaModel.load_from_checkpoint` — strict match, 0 missing / 0 unexpected keys |
+| check | tree it was run against | result |
+|---|---|---|
+| tensors compared | working copy vs. originals | 62 / 62 per checkpoint, all 10 checkpoints |
+| `torch.equal` on every tensor | working copy vs. originals | **True — bit-identical to the originals** |
+| parameters per checkpoint | working copy | 942,275 (942,210 trainable + 65 buffer elements) |
+| reload under the shipped code | **fresh `git clone` @ `bdc240c`** | `FormaModel.load_from_checkpoint` — 62 tensors, 942,275 params, 0 missing / 0 unexpected keys |
 
 The shipped weights **are** the weights that produced the paper's numbers; the
 strip changed only the metadata blob.
+
+> **Correction (2026-07-26).** As first published, the reload row said "under the
+> shipped code" but had only ever been run against the authors' working copy. It
+> was false of the release: `.gitignore` was silently excluding `src/forma/data/`,
+> so a clone could not import `FormaModel` at all, and every command in the
+> reproduction map failed on `ModuleNotFoundError: No module named 'forma.data'`.
+> A cold third-party replication attempt found it. The subpackage now ships
+> (`bdc240c`), CI checks the import on every push from a fresh checkout, and the
+> row above has been re-run against a clone rather than a working tree.
+>
+> The general lesson is recorded here deliberately: **every other claim in this
+> document was verified against the authors' working copy too.** The numbers
+> were checked carefully; the *artifact* was not. Where a row's tree is not
+> stated, assume working copy — and treat the CI job, which runs from a clean
+> checkout, as the authority on what the release can actually do.
 
 ## 2. Table 1 Panel A — Full column (Gaussian, 5-seed mixture)
 
