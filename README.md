@@ -193,6 +193,28 @@ post callback-strip):
 | `forma_lap05_fgrid_seed63.ckpt` | `41651c5154c32b93432151539fd20130` |
 | `forma_lap05_fgrid_seed64.ckpt` | `65b6442d24f0343563df9e5813d23a50` |
 
+## Release documentation
+
+[`docs/release_documentation.pdf`](docs/release_documentation.pdf) is the
+detailed technical write-up behind the paper, in three parts:
+
+| part | covers | relevant here |
+|---|---|---|
+| **A** | data pipeline — sample formation, splits, regularization, the 78-item universe, availability, accounting identities | context for the inputs |
+| **B** | model training and implementation detail, plus every competitor's exact specification | **this repository** — Forma and the competitor scripts under `scripts/` |
+| **C** | the LLM benchmark protocol, with both prompt arms reproduced in full | **this repository** — `scripts/llm/` |
+
+> The **canonical copy lives in the benchmark repository** (`docs/` there); this
+> is a byte-identical duplicate so that anyone holding only the model repository
+> has Parts B and C, which describe *this* code. Both copies are
+> `sha256 55fa6f76dffaca29b1027a8438d5c09e26dc182d89790f50ef9ec5803a46fa5e`
+> — if that digest ever differs between the two repositories, the benchmark
+> repository wins and this copy is stale. Regenerate both together.
+
+Part C's prompt listings are ASCII transliterations; the byte-exact originals
+ship separately with published digests (see *What ships vs. what is
+regenerated*).
+
 ## Repository layout
 
 ```
@@ -201,6 +223,8 @@ src/forma/            Forma model, tuple dataset/collators, inference (forma.tra
 src/forma/metadata/   checkpoint-coupled account/industry id maps (ship with the model)
 configs/              Forma + competitor configs, accounting identities
 checkpoints/          the 10 trained Forma checkpoints
+docs/                 ACCEPTANCE.md + release_documentation.pdf (Parts A/B/C)
+results_panels/       per-horizon calibration + metric series for the canonical run
 scripts/              predict_forma / predict_ffnn / regen_* / density + DM scorers
 scripts/llm/          LLM benchmark harness, prompt arms, cost/wobble tools
 tests/                scoring-math tests + a WRDS-free synthetic pipeline smoke test
