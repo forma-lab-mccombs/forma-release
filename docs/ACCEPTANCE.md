@@ -103,7 +103,10 @@ Cov90), so there is nothing to compare it against.
 
 Both Panel C numbers come from code shipped in this repository: the mixture NLL
 from `forma.scoring.evaluate`'s seed-mixture track, and the CRPS/coverage from
-`scripts/mixture_calibration.py`.
+`scripts/mixture_calibration.py`. The canonical-run outputs of both passes —
+including the per-horizon coverage series the paper references — are committed
+under [`results_panels/full_sample_likelihood/`](../results_panels/README.md),
+so these tables can be checked without rerunning anything.
 
 ## 4. Reproduction commands
 
