@@ -83,6 +83,13 @@ class IdentitySchema:
         # e.g. "-cheq_-1" -> Sign: -, Name: cheq, Lag: -1
         pattern = re.compile(r'([+-])(.+)_([0-9-]+)$')
 
+        # Expected whenever the panel covers a subset of the full account
+        # universe (e.g. the synthetic smoke test): identity terms referencing
+        # accounts outside the panel's map are skipped. Collected and reported
+        # once, not per occurrence -- the full identity list repeats each name
+        # many times.
+        skipped_names: set = set()
+
         for idx, equation in enumerate(raw_identities):
             for term in equation:
                 match = pattern.match(term)
@@ -93,8 +100,8 @@ class IdentitySchema:
                 sign_str, name, lag_str = match.groups()
 
                 if name not in self.name_to_id:
-                    print(f"Warning: Account name '{name}' not found in account map.")
-                    continue  # Skip accounts not in our subset
+                    skipped_names.add(name)
+                    continue  # Skip accounts not in this panel's subset
 
                 acc_id = self.name_to_id[name]
                 lag = int(lag_str)
@@ -105,6 +112,12 @@ class IdentitySchema:
 
                 self.account_edge_lookup[acc_id].append((idx, lag, sign))
                 self.identity_terms_by_lag[(idx, lag)].add(acc_id)
+
+        if skipped_names:
+            print(f"Note: {len(skipped_names)} account name(s) in the identity "
+                  f"definitions are not in this panel's account map and were "
+                  f"skipped (expected for a subset panel): "
+                  f"{', '.join(sorted(skipped_names))}")
 
         # Pre-compute terms indexed by identity for faster lookup in get_edges
         # terms_by_identity[identity_idx] = [(lag, set(account_ids)), ...]

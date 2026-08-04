@@ -19,6 +19,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "llm"))  # harness lives under scripts/llm
 
+# The harness imports httpx at module level, which ships in the [llm] extra --
+# without this guard a plain [dev] install aborts COLLECTION for the whole
+# suite instead of skipping the harness tests.
+pytest.importorskip("httpx", reason="LLM harness tests need the [llm] extra")
+
 import llm_benchmark as lb  # noqa: E402
 
 

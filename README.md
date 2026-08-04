@@ -32,8 +32,12 @@ to absorb (`proforma20q/evaluate.py`: *"port them here once they land, tracking
 the main repo rather than forking"*); they will be upstreamed after submission,
 at which point this repo drops its scoring slice entirely.
 
-Pin the benchmark at **`4f5a1df`** to reproduce the recorded numbers — scores are
-only comparable against a fixed evaluator version.
+Scores are only comparable against a fixed evaluator version. **The benchmark
+snapshot released alongside this repository *is* the pinned state** — if you
+obtained the two together (the paired review mirrors, or the paired public
+release), you already hold matching versions and nothing needs pinning. Only
+mix-and-match installs (this repo against a later benchmark checkout) can
+drift.
 
 ## Install
 
@@ -54,9 +58,13 @@ the competitor, Chronos, and LLM paths pull their own stacks via the extras abov
 ### Verify the install
 
 ```bash
-pip install -e '/path/to/forma-release[dev]'   # adds pytest
-python -m pytest tests/ -q                     # expect: 77 passed
+pip install -e '/path/to/forma-release[llm,dev]'   # pytest + the LLM-harness deps the suite imports
+python -m pytest tests/ -q                         # expect: 77 passed
 ```
+
+(`[llm]` matters: the harness tests import `httpx` from that extra. On a plain
+`[dev]` install they are skipped rather than run, so the passed count comes up
+short of 77.)
 
 The suite needs no credentials, no GPU, and no downloads. It covers the scoring
 math (CRPS, mixture CRPS, mixture NLL — checked against quadrature, Monte-Carlo
@@ -131,27 +139,33 @@ from the benchmark repo / archival release). Point metrics are scored by
 | **Table 1 — Naive / Fade / ElasticNet** | `proforma20q baselines --which naive,fade,elasticnet` (reference baselines shipped by the benchmark package) |
 | **T1 / F1 Diebold-Mariano stars** | `python scripts/dm_tests.py --exp_dir <pool> --reference forma_fgrid__pf_full` (quarter-clustered, Newey-West h−1, HLN-corrected) |
 
-> ⚠️ **Scoring a full-scale forecast.** `proforma20q evaluate` reads the whole
-> submission into memory, and its validation materializes a fixed-width unicode
-> array over every row — on a complete `pf_full` forecast (472,695,966 rows) that
-> needs tens of GB and fails on ordinary hardware
-> ([proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12)).
-> Until that fix lands, score full-sample forecasts with the streaming evaluator:
-> `python -m forma.scoring.evaluate --exp_dir <pool> --splits test`. The two
-> implementations agree (see [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) §6).
+> **Scoring a full-scale forecast.** `proforma20q evaluate` streams submissions
+> by row-group and handles full scale on ordinary hardware — an earlier OOM
+> ([proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12)) is
+> fixed and closed, confirmed against the canonical Forma forecast
+> (472,695,966 rows — the model's actual coverage, not the 550,620,720-row
+> full grid): R² 0.289172 / MAE 0.408494 on the 327,244,429-cell Full sample.
+> It is the authoritative evaluator for Panel A. The in-repo streaming
+> implementation (`python -m forma.scoring.evaluate --exp_dir <pool> --splits
+> test`) remains available, and the two agree (see
+> [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) §6).
 
 The two prompt arms ship **byte-exact**; verify them before trusting a rerun.
 `.gitattributes` marks them `-text` so no checkout rewrites their bytes:
 
-| arm | file | bytes | file md5 | `system_prompt_sha` logged at runtime |
+| arm | file | bytes | file md5 | SHA-256 of the loaded prompt (12/11/20 run config) |
 |---|---|---|--:|---|
-| unstructured | `scripts/llm/prompts/system_prompt_unstructured.txt` | 11,343 | `499ccefd14d2d5509397b502f925214f` | `c6134074fe6482061e0def95c9e74e3e1800af9b258774e63e7e47fb4b4567c7` |
-| structured | `scripts/llm/prompts/system_prompt_structured.txt` | 13,450 | `1a0ac1edf6c99a73aa81410a2afb9f65` | `d6ad507502c829432bbb78d8ce807d147d07f5d8ac114d43df830e7bd7431803` |
+| unstructured | `scripts/llm/prompts/system_prompt_unstructured.txt` | 11,343 | `499ccefd14d2d5509397b502f925214f` | `6d2914b8fa9e0a56f0b197820dd93581a44e7dd1181d6b4cc0bdb897afdd03ec` |
+| structured | `scripts/llm/prompts/system_prompt_structured.txt` | 13,450 | `1a0ac1edf6c99a73aa81410a2afb9f65` | `46f4d9d2b5bcfa27c6e94808577b1e08ece6287e86988e877cc8500fac06f69b` |
 
 The two digests differ by design: the md5 covers the file on disk, while the
-sha256 the harness records in each run's metadata is taken over the *loaded*
-prompt (trailing whitespace stripped), so it is the one to match against an
-archived run.
+sha256 is taken over the *loaded* prompt — read as UTF-8 with universal
+newlines, right-stripped, and with the `{lookback_qs}`/`{lookback_first}`/
+`{max_horizon}` tokens substituted (`12`/`11`/`20` for the production run) —
+so it covers the exact text sent to the models. The `system_prompt_sha` the
+harness records in each run's metadata is the **first 16 hex characters** of
+this digest (`6d2914b8fa9e0a56` / `46f4d9d2b5bcfa27`); match archived runs
+against that prefix.
 
 The LLM column uses **regeneration-pinned** origins: the exact 2,103-origin
 sample is regenerated from seed `20260615` and verified against fingerprint

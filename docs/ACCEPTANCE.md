@@ -134,20 +134,22 @@ proforma20q evaluate <mixture>.parquet --truth <tabular_test>.parquet \
     --sample-mask <full_sample_mask_bits>.npy
 ```
 
-⚠️ **See "Known limitation" below** — at full scale this command currently
-requires the fix in `proforma-20q` issue #12. The Panel A numbers above were
-produced with the streaming evaluator (`forma.scoring.evaluate`) instead; the
-two implementations agree (see §6).
+This works at full scale: `proforma20q evaluate` streams submissions by
+row-group (an earlier whole-file-in-memory OOM,
+[proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12), is
+fixed and closed) and has been confirmed against the canonical Forma forecast —
+472,695,966 rows, the model's actual coverage rather than the 550,620,720-row
+full grid — reproducing R² 0.289172 / MAE 0.408494 on the 327,244,429-cell
+Full sample. The Panel A numbers in this document were originally produced
+with the streaming evaluator (`forma.scoring.evaluate`); the two
+implementations agree (see §6).
 
-## 5. Known limitation — scoring a full-scale submission
+## 5. Practical notes on scoring a full-scale submission
 
-`proforma20q evaluate` reads the whole submission into memory and its
-`validate_forecast` materializes a fixed-width unicode array over every row. On
-a complete `pf_full` forecast (472,695,966 rows) that needs tens of GB and fails
-on ordinary hardware — reported upstream as
-[proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12).
-Until that lands, score full-sample forecasts with `forma.scoring.evaluate`,
-which streams row-group-wise through on-disk caches.
+Either evaluator handles full scale on ordinary hardware: `proforma20q
+evaluate` validates and scores by row-group, and `forma.scoring.evaluate`
+streams through on-disk caches. `proforma20q evaluate` is the authoritative
+one for Panel A.
 
 Unrelated but worth knowing: a forecast parquet written **without pandas
 categorical metadata** (e.g. by a bare `pyarrow` writer) materializes its string
