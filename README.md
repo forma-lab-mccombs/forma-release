@@ -221,7 +221,7 @@ detailed technical write-up behind the paper, in three parts:
 > The **canonical copy lives in the benchmark repository** (`docs/` there); this
 > is a byte-identical duplicate so that anyone holding only the model repository
 > has Parts B and C, which describe *this* code. Both copies are
-> `sha256 55fa6f76dffaca29b1027a8438d5c09e26dc182d89790f50ef9ec5803a46fa5e`
+> `sha256 347c32111942ef2d2819347152008460d1ddf9fc56bd2234e1cfe4ddf6a56e0c`
 > — if that digest ever differs between the two repositories, the benchmark
 > repository wins and this copy is stale. Regenerate both together.
 
