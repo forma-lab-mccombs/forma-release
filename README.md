@@ -3,7 +3,7 @@
 Code, configurations, and trained **Forma** checkpoints for the GNN-Transformer
 pro-forma financial forecaster, plus code and configurations for the competitor
 models, benchmarked with the companion package
-[`proforma-20q`](https://github.com/ANONYMIZED/proforma-20q).
+[`proforma-20q`](https://github.com/forma-lab-mccombs/proforma-20q).
 
 This repo is **inference-first**: a reviewer goes checkpoint → forecast parquet →
 `proforma20q evaluate` → the paper's Table 1 numbers. It ships **no data**.
@@ -108,7 +108,7 @@ the build, so the trained embeddings are never permuted.
 > — the int→gvkey table that turns the tuple view's integer firm ids into the
 > identifiers a submission requires — but `proforma20q build` currently computes
 > it and discards it
-> ([proforma-20q#13](https://github.com/ANONYMIZED/proforma-20q/issues/13)).
+> ([proforma-20q#13](https://github.com/forma-lab-mccombs/proforma-20q/issues/13)).
 > Until that fix lands, rebuild it from the raw panel; `predict_forma.py` derives
 > it with the build's own rule and verifies it against the tuple view before use:
 >
@@ -141,7 +141,7 @@ from the benchmark repo / archival release). Point metrics are scored by
 
 > **Scoring a full-scale forecast.** `proforma20q evaluate` streams submissions
 > by row-group and handles full scale on ordinary hardware — an earlier OOM
-> ([proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12)) is
+> ([proforma-20q#12](https://github.com/forma-lab-mccombs/proforma-20q/issues/12)) is
 > fixed and closed, confirmed against the canonical Forma forecast
 > (472,695,966 rows — the model's actual coverage, not the 550,620,720-row
 > full grid): R² 0.289172 / MAE 0.408494 on the 327,244,429-cell Full sample.

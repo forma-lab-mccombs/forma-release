@@ -4,21 +4,11 @@ on:
   push:
   pull_request:
 
-# The companion benchmark package (`proforma-20q`) is a source install, and its
-# repository URL is deliberately NOT written in this file: this repo mirrors for
-# double-blind review, so no organisation URL may appear in file contents.
-# Instead set, in repository settings:
-#
-#   variable  COMPANION_REPO_URL  = https://github.com/<org>/proforma-20q
-#   secret    COMPANION_TOKEN     = a read-only token, only while that repo is private
-#
-# Settings are not files, so neither is ever mirrored. When both are absent the
-# companion-dependent steps skip with a notice and everything else still runs,
-# so forks and mirrors stay green and honestly reported rather than silently
-# hollow. Once `proforma-20q` is public / on PyPI, drop both and replace the
-# install step with `pip install proforma-20q`.
-env:
-  COMPANION_REPO_URL: ${{ vars.COMPANION_REPO_URL }}
+# The companion benchmark package (`proforma-20q`) is a public source install.
+# During the double-blind review window this URL lived in repository settings
+# (COMPANION_REPO_URL / COMPANION_TOKEN) so no organisation URL appeared in
+# mirrored file contents; both repos are public now, so it is written plainly.
+# Swap to `pip install proforma-20q` once the package is on PyPI.
 
 jobs:
   # Core = Forma inference only. This job installs NO competitor/LLM/chronos
@@ -34,27 +24,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check whether the companion package is reachable
-        id: companion
-        run: |
-          if [ -n "${COMPANION_REPO_URL}" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::COMPANION_REPO_URL is not set, so the synthetic pipeline smoke test (which needs proforma-20q) is skipped. Everything else still runs. See this file's header to enable it."
-          fi
-
       - name: Install companion benchmark package (source)
-        if: steps.companion.outputs.available == 'true'
-        env:
-          COMPANION_TOKEN: ${{ secrets.COMPANION_TOKEN }}
-        run: |
-          if [ -n "${COMPANION_TOKEN}" ]; then
-            # Private companion: authenticate without putting the URL in the repo.
-            pip install "proforma-20q @ git+https://x-access-token:${COMPANION_TOKEN}@${COMPANION_REPO_URL#https://}"
-          else
-            pip install "proforma-20q @ git+${COMPANION_REPO_URL}"
-          fi
+        run: pip install "proforma-20q @ git+https://github.com/forma-lab-mccombs/proforma-20q"
 
       - name: Install forma-release (core + dev only)
         run: pip install -e ".[dev]"
@@ -78,7 +49,6 @@ jobs:
             --ignore=tests/test_synthetic_smoke.py
 
       - name: Synthetic pipeline smoke test (needs the companion)
-        if: steps.companion.outputs.available == 'true'
         run: python -m pytest tests/test_synthetic_smoke.py -q
 
   # The LLM harness needs the [llm] extra (httpx). Kept separate so it never

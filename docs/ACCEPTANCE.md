@@ -136,7 +136,7 @@ proforma20q evaluate <mixture>.parquet --truth <tabular_test>.parquet \
 
 This works at full scale: `proforma20q evaluate` streams submissions by
 row-group (an earlier whole-file-in-memory OOM,
-[proforma-20q#12](https://github.com/ANONYMIZED/proforma-20q/issues/12), is
+[proforma-20q#12](https://github.com/forma-lab-mccombs/proforma-20q/issues/12), is
 fixed and closed) and has been confirmed against the canonical Forma forecast —
 472,695,966 rows, the model's actual coverage rather than the 550,620,720-row
 full grid — reproducing R² 0.289172 / MAE 0.408494 on the 327,244,429-cell
