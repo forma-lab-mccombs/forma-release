@@ -1,7 +1,7 @@
 # Canonical acceptance record
 
 Verification that the artifacts in this repository reproduce the paper's
-published numbers. Run 2026-07-24/25 against the canonical R13 build
+published numbers. Run 2026-07-24/25 against the canonical build
 (`r13_node_optionD_indfe_val8`) and the canonical forecast store.
 
 Scored companion: **`proforma-20q` @ `4f5a1df`**. Pin this commit when
@@ -176,8 +176,8 @@ time of that run — the agreement is the point, not the values.)
 - **Chained-GBM Table-1 rows.** Not re-scored. Their weights are not shipped and
   the GBM column additionally needs the `pf_full_glm` build, which
   `proforma20q build` does not produce. (The FFNN rows *were* verified — §2.)
-  The original forecast parquets that produced these rows land in the
-  on-publication archival release.
+  The original forecast parquets that produced these rows are not distributed;
+  regenerate them with `scripts/regen_gbm.py`.
 - **Regeneration of forecasts from the shipped checkpoints.** Inference was
   measured at ~27.5 s/batch × 11,896 batches ≈ 91 h per seed on the CPU-only
   machine used here (no CUDA), i.e. ~19 days for the 5-seed family — it needs

@@ -4,9 +4,9 @@
 # set); "GBM" = the model only (ChainedGBMModel). See configs/feature_sets.yaml.
 #
 # v2 (issue #236): the v1 build omitted the six reg_{mu,sig,k}_* knobs, so its
-# dataset was regularized with REG_STATS_DEFAULTS instead of the R13 chains —
-# the glm truth diverged from the r13 pf_full truth on every shared target and
-# the GLM column was scored in the GBM's home normalization. v2 pins the R13
+# dataset was regularized with REG_STATS_DEFAULTS instead of the canonical chains —
+# the glm truth diverged from the canonical pf_full truth on every shared target and
+# the GLM column was scored in the GBM's home normalization. v2 pins the canonical
 # chains and rebuilds under a new dataset_tag; v1 artifacts are kept untouched
 # to reproduce the committed (superseded) numbers.
 #
@@ -17,17 +17,17 @@
 # forecasts the GLM chain while seeing the richer pf_full feature matrix as inputs.
 experiment:
   name: "glm_v2"
-  description: "GLM benchmark v2 (r13 reg chains): chained GBM model on pf_full_glm features (GLM 2026 chain targets)"
+  description: "GLM benchmark v2 (canonical reg chains): chained GBM model on pf_full_glm features (GLM 2026 chain targets)"
 
 data:
   feature_set: "pf_full_glm"
-  # R13 addendum: share R13's regime so this GBM benchmark is pairwise-comparable
-  # to the banked R13 Forma forecasts. Only the feature_set differs (pf_full_glm
-  # vs pf_full), so the suffixed build files coexist with R13's in
+  # Addendum: share the canonical regime so this GBM benchmark is pairwise-comparable
+  # to the banked Forma forecasts. Only the feature_set differs (pf_full_glm
+  # vs pf_full), so the suffixed build files coexist with the canonical build's in
   # data/processed/ with no collision. (The unsuffixed *_id_map.csv files are
   # shared+append-only — snapshot before building.)
   #
-  # NOTE the tag is NOT R13's: the v1 glm build already owns
+  # NOTE the tag is NOT the canonical one: the v1 glm build already owns
   # tabular_*__pf_full_glm__r13_node_optionD_indfe_val8.parquet and stays
   # load-bearing (it reproduces the committed v1 GLM column bit-exactly), so the
   # regfix build gets its own tag rather than overwriting it.
@@ -42,7 +42,7 @@ data:
   use_future_grid: false
 
   time_splits:
-    train_end_year: 2001   # match R13: moves both the split and the reg-stats cutoff (train 1971-2001)
+    train_end_year: 2001   # match the canonical build: moves both the split and the reg-stats cutoff (train 1971-2001)
     val_end_year: 2009     # val 2002-2009 (8 yr); test 2010+ unchanged
 
   firm_id_map_path: "data/processed/firm_id_map.csv"
@@ -59,10 +59,10 @@ data:
         end: 6999
 
   feature_engineering:
-    # Regularization chains pinned to R13's (the v2 fix, issue #236). v1 omitted
+    # Regularization chains pinned to the canonical build's (the v2 fix, issue #236). v1 omitted
     # these six knobs and silently fell back to REG_STATS_DEFAULTS (all chains
     # scale_lag=0, feature_lags=[8]), producing a truth normalization that
-    # disagrees with the r13 pf_full truth on every shared target.
+    # disagrees with the canonical pf_full truth on every shared target.
     reg_mu_scale_lag: 0
     reg_mu_feature_lags: [0]
     reg_sig_scale_lag: 4

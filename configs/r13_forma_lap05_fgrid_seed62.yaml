@@ -1,4 +1,4 @@
-# R13 FORMA LAPLACE beta-NLL(0.5), leak-closed future grid - seed 62.
+# FORMA LAPLACE beta-NLL(0.5), leak-closed future grid - seed 62.
 # L1/median-track specialist for the ICAIF26 two-track T1: identical to the
 # CANONICAL r13_forma_fgrid_seed62.yaml EXCEPT loss_type gaussian->laplace
 # (beta_nll stays 0.5, mirroring the Gaussian track's weighting - the
@@ -16,7 +16,7 @@
 #   python -m forma.train --config configs/r13_forma_lap05_fgrid_seed62.yaml --model-only forma --forecast-splits test
 experiment:
   name: "r13_forma_lap05_fgrid_seed62"
-  description: "R13 Forma Laplace beta-NLL(0.5) leak-closed future-grid, seed 62; L1/median-track arm, else canonical-fgrid-identical (fp32, seed-aware forecast name, forecast_name=forma_lap05_fgrid). Stage-1 seed of the planned 5-seed family."
+  description: "Forma Laplace beta-NLL(0.5) leak-closed future-grid, seed 62; L1/median-track arm, else canonical-fgrid-identical (fp32, seed-aware forecast name, forecast_name=forma_lap05_fgrid). Stage-1 seed of the planned 5-seed family."
 
 seed: 62
 
@@ -32,7 +32,7 @@ trainer:
 
 data:
   feature_set: "pf_full"
-  dataset_tag: "r13_node_optionD_indfe_val8"   # R13 8-year-val rebuild; reuse the existing build, do NOT rebuild.
+  dataset_tag: "r13_node_optionD_indfe_val8"   # canonical 8-year-val rebuild; reuse the existing build, do NOT rebuild.
   raw_path: "data/raw/compustat_with_permno.parquet"
   processed_dir: "data/processed"
   identities_path: "configs/identities.json"

@@ -20,7 +20,7 @@ inference:
 
 data:
   feature_set: "pf_full"
-  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the R13 build; do NOT rebuild.
+  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the canonical build; do NOT rebuild.
   raw_path: "data/raw/compustat_with_permno.parquet"
   processed_dir: "data/processed"
   feature_sets_config: "configs/feature_sets.yaml"

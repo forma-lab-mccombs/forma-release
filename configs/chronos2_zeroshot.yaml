@@ -6,7 +6,7 @@
 # account JOINTLY for horizons 1..20 via Chronos-2 group attention. This mirrors
 # Forma-at-inference (a firm's full account panel at once, no covariates, no
 # cross-firm features); the difference is Chronos is NOT trained on the panel.
-# Reuses the R13 pf_full / r13_node_optionD_indfe_val8 processed data (NO rebuild).
+# Reuses the canonical pf_full / r13_node_optionD_indfe_val8 processed data (NO rebuild).
 #
 # Parity: we emit a forecast per account; evaluate.py inner-joins to the sparse
 # {account}_t{h} actuals, so both models are scored on the same observed cells
@@ -19,7 +19,7 @@
 #   python -m forma.train --config configs/chronos2_zeroshot.yaml --model-only chronos --forecast-splits test
 experiment:
   name: "chronos2_zeroshot"
-  description: "Amazon Chronos-2 zero-shot TSFM benchmark on the R13 pf_full build; probabilistic (median + 0.1/0.9->sigma), scored on both point and likelihood tracks."
+  description: "Amazon Chronos-2 zero-shot TSFM benchmark on the canonical pf_full build; probabilistic (median + 0.1/0.9->sigma), scored on both point and likelihood tracks."
 
 seed: 0
 
@@ -30,7 +30,7 @@ inference:
 
 data:
   feature_set: "pf_full"
-  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the R13 8-year-val build; do NOT rebuild.
+  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the canonical 8-year-val build; do NOT rebuild.
   raw_path: "data/raw/compustat_with_permno.parquet"
   processed_dir: "data/processed"
   feature_sets_config: "configs/feature_sets.yaml"
@@ -38,7 +38,7 @@ data:
   num_workers: 8
   predict_batch_size: 32
   time_splits:
-    train_end_year: 2001   # train 1971-2001; val 2002-2009; test 2010+ (matches the R13 build).
+    train_end_year: 2001   # train 1971-2001; val 2002-2009; test 2010+ (matches the canonical build).
     val_end_year: 2009
   firm_id_map_path: "data/processed/firm_id_map.csv"
   account_id_map_path: "data/processed/account_id_map.csv"

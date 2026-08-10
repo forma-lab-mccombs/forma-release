@@ -1,8 +1,8 @@
-# R13 FFNN beta-NLL - CV / epoch-finding pass (large + linear), seed 62.
+# FFNN beta-NLL - CV / epoch-finding pass (large + linear), seed 62.
 #
 # >>> SEQUENCED: RUN THIS FIRST, then set the benchmark configs' `epochs`. <<<
 # no_cv:false -> trains on 1971-2001 and early-stops on the 8-year val fold
-# (2002-2009) to find each net's best-val epoch UNDER the R13 split. The window
+# (2002-2009) to find each net's best-val epoch UNDER the canonical split. The window
 # moved vs r12, so the r12 epochs (large 6 / linear 7) do NOT transfer - re-find.
 # skip_predict:true (diagnostic only). Each model prints "best val epoch = N";
 # copy each into the matching r13_ffnn_{large,linear}_betanll_seed*.yaml.
@@ -10,7 +10,7 @@
 #   python -m forma.train --config configs/r13_ffnn_betanll_cv.yaml --forecast-splits test
 experiment:
   name: "r13_ffnn_betanll_cv"
-  description: "R13 FFNN beta-NLL (beta=0.5) dropout-0.10 recipe, large+linear; CV/epoch-finding pass (no_cv:false, skip_predict:true) on the R13 8-year-val build. Read best-val epochs, set the benchmark configs, then run those."
+  description: "FFNN beta-NLL (beta=0.5) dropout-0.10 recipe, large+linear; CV/epoch-finding pass (no_cv:false, skip_predict:true) on the canonical 8-year-val build. Read best-val epochs, set the benchmark configs, then run those."
 
 seed: 62
 
@@ -22,7 +22,7 @@ trainer:
 
 data:
   feature_set: "pf_full"
-  dataset_tag: "r13_node_optionD_indfe_val8"   # R13 8-year-val rebuild; train_end_year=2001 also moves the reg-stats cutoff. Build ONCE (see header).
+  dataset_tag: "r13_node_optionD_indfe_val8"   # canonical 8-year-val rebuild; train_end_year=2001 also moves the reg-stats cutoff. Build ONCE (see header).
   raw_path: "data/raw/compustat_with_permno.parquet"
   processed_dir: "data/processed"
   identities_path: "configs/identities.json"

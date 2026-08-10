@@ -122,9 +122,11 @@ the build, so the trained embeddings are never permuted.
 ## Reproduction map
 
 One row per paper exhibit → command. `<build>` is your `proforma20q build` output
-dir (e.g. `data/processed`); `<mask>` is the Full-sample mask (`full_sample_mask_bits.npy`,
-from the benchmark repo / archival release). Point metrics are scored by
-`proforma20q evaluate`; the density track (Panel C) by `mixture_calibration.py`.
+dir (e.g. `data/processed`); `<mask>` is the Full-sample mask
+(`full_sample_mask_bits.npy`, [shipped in the benchmark repo](https://github.com/forma-lab-mccombs/proforma-20q/blob/main/artifacts/full_sample_mask_bits.npy);
+a byte-identical copy is in the [archival deposit](#released-forecast-parquets)).
+Point metrics are scored by `proforma20q evaluate`; the density track (Panel C)
+by `mixture_calibration.py`.
 
 | Paper exhibit | Command |
 |---|---|
@@ -178,9 +180,11 @@ ship.
 
 - **Forma** — trained checkpoints ship in-repo (`checkpoints/`): 5 seeds each for
   the Gaussian (`forma_fgrid`) and Laplace (`forma_lap05_fgrid`) families.
-- **FFNN / Chained GBM** — training code, configs, and seeds ship; **weights do
-  not** (the paper's "seeded regeneration scripts otherwise" clause). The
-  original forecast parquets land in the on-publication archival release.
+- **FFNN** — training code, configs, and seeds ship; **weights do not** (the
+  paper's "seeded regeneration scripts otherwise" clause). The original forecast
+  parquets are in the [archival deposit](#released-forecast-parquets).
+- **Chained GBM** — training code, configs, and seeds ship; weights and forecast
+  parquets do not. Regenerate with `scripts/regen_gbm.py`.
 - **Random Forest** — seeded regeneration script only (1,560 forests are too
   large to bank).
 - **Chronos-2** — zero-shot driver; weights pulled from the Hugging Face Hub
@@ -188,6 +192,44 @@ ship.
 - **LLM benchmark** — harness, two byte-exact prompt arms
   (`scripts/llm/prompts/system_prompt_{unstructured,structured}.txt`), and the
   regeneration-pinned sample recipe ship; forecasts are regenerable from those.
+
+### Released forecast parquets
+
+The canonical Forma forecast — the exact file behind the paper's headline
+numbers — is **`forma_fgrid__pf_full__test__predictions.parquet`** (3.7 GB, md5
+`1820fcc9…`, 472,695,966 rows). It is the 5-seed Gaussian mixture, moment-matched
+to one row per forecasted cell, and it is what **Table 1 Panel A** scores:
+R² 0.289172 / MAE 0.408494 on the 327,244,429-cell Full sample. Pool your own
+model against this file.
+
+These forecasts are too large for git, so they live in the archival deposit at
+**[doi:10.5281/zenodo.21269003](https://doi.org/10.5281/zenodo.21269003)**
+(CC BY 4.0, ~21.6 GB total). Nothing here requires them — every command in the
+[reproduction map](#reproduction-map) regenerates its forecast from the shipped
+checkpoints and configs — but they let you score against the paper's exact bytes
+without a rebuild:
+
+```bash
+python /path/to/proforma-20q/scripts/download_artifacts.py --out data/artifacts \
+    --only forma_fgrid__pf_full__test__predictions.parquet
+```
+
+Downloads stage under `.part` and are rejected on md5 mismatch; a parquet's
+density sidecar is pulled automatically alongside it. The companion files:
+
+| artifact | size | md5 | for |
+|---|---|---|---|
+| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 7.4 GB | `1e8b0415…` | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
+| `forma_lap05_fgrid__pf_full__test__predictions.nll.json` | 33 B | `a3d8659a…` | that file's **family sidecar**. Keep it next to the parquet — without it the evaluator **silently scores the file as Gaussian**. |
+| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GB | `e419c833…` | **FFNN (linear)** comparator row |
+| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GB | `915779a3…` | **FFNN (large)** comparator row |
+
+Every file carries the canonical forecast schema — `firm_id`, `target`,
+`quarter`, `forecast_horizon`, `prediction`, `sigma`, `model` — which
+`proforma20q` accepts directly, normalizing the first, third, and fourth to its
+own `firm` / `origin` / `horizon` names on read. See the
+[benchmark repo's artifact tables](https://github.com/forma-lab-mccombs/proforma-20q#readme)
+for the full manifest, including the mask and its canonical row index.
 
 ## Checkpoint inventory
 
