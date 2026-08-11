@@ -198,7 +198,7 @@ ship.
 ### Released forecast parquets
 
 The canonical Forma forecast — the exact file behind the paper's headline
-numbers — is **`forma_fgrid__pf_full__test__predictions.parquet`** (3.7 GB, md5
+numbers — is **`forma_fgrid__pf_full__test__predictions.parquet`** (3.7 GiB, md5
 `1820fcc9…`). It is the 5-seed Gaussian mixture, moment-matched to one row per
 forecasted cell, and it is what **Table 1 Panel A** scores — its row count and
 the R²/MAE it reproduces are stated once, in the scoring note under
@@ -206,7 +206,7 @@ the R²/MAE it reproduces are stated once, in the scoring note under
 
 These forecasts are too large for git, so they live in the archival deposit at
 **[doi:10.5281/zenodo.21269003](https://doi.org/10.5281/zenodo.21269003)**
-(CC BY 4.0, ~21.6 GB total). Nothing here requires them — every command in the
+(CC BY 4.0, ~21.6 GiB total). Nothing here requires them — every command in the
 [reproduction map](#reproduction-map) regenerates its forecast from the shipped
 checkpoints and configs — but they let you score against the paper's exact bytes
 without a rebuild:
@@ -221,10 +221,10 @@ density sidecar is pulled automatically alongside it. The companion files:
 
 | artifact | size | md5 | for |
 |---|---|---|---|
-| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 7.4 GB | `1e8b0415…` | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
+| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 7.4 GiB | `1e8b0415…` | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
 | `forma_lap05_fgrid__pf_full__test__predictions.nll.json` | 33 B | `a3d8659a…` | that file's **family sidecar**. Keep it next to the parquet — without it the evaluator **silently scores the file as Gaussian**. |
-| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GB | `e419c833…` | **FFNN (linear)** comparator row |
-| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GB | `915779a3…` | **FFNN (large)** comparator row |
+| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GiB | `e419c833…` | **FFNN (linear)** comparator row |
+| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GiB | `915779a3…` | **FFNN (large)** comparator row |
 
 Every file carries the same seven columns — `firm_id`, `target`, `quarter`,
 `forecast_horizon`, `prediction`, `sigma`, `model` — which `proforma20q` accepts

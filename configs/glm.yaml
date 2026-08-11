@@ -8,8 +8,8 @@
 # chains — the glm truth diverged from the canonical pf_full truth on every
 # shared target and the GLM column was scored in the GBM's home normalization.
 # v2 pins the canonical chains and rebuilds under a new dataset_tag; v1
-# artifacts are kept untouched
-# to reproduce the committed (superseded) numbers.
+# artifacts are kept untouched to reproduce the committed (superseded)
+# numbers.
 #
 # Feature/target decoupling: features come from the full pf_full_glm union
 # (pf_full inputs + the glm chain items), while targets are restricted to the
@@ -63,9 +63,9 @@ data:
   feature_engineering:
     # Regularization chains pinned to the canonical build's (the v2 fix,
     # issue #236). v1 omitted these six knobs and silently fell back to
-    # REG_STATS_DEFAULTS (all chains
-    # scale_lag=0, feature_lags=[8]), producing a truth normalization that
-    # disagrees with the canonical pf_full truth on every shared target.
+    # REG_STATS_DEFAULTS (all chains scale_lag=0, feature_lags=[8]),
+    # producing a truth normalization that disagrees with the canonical
+    # pf_full truth on every shared target.
     reg_mu_scale_lag: 0
     reg_mu_feature_lags: [0]
     reg_sig_scale_lag: 4
