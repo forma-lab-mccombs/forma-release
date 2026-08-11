@@ -226,10 +226,20 @@ density sidecar is pulled automatically alongside it. The companion files:
 | `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GB | `e419c833…` | **FFNN (linear)** comparator row |
 | `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GB | `915779a3…` | **FFNN (large)** comparator row |
 
-Every file carries the canonical forecast schema — `firm_id`, `target`,
-`quarter`, `forecast_horizon`, `prediction`, `sigma`, `model` — which
-`proforma20q` accepts directly, mapping `firm_id` → `firm`, `quarter` → `origin`,
-and `forecast_horizon` → `horizon` on read. See the
+Every file carries the same seven columns — `firm_id`, `target`, `quarter`,
+`forecast_horizon`, `prediction`, `sigma`, `model` — which `proforma20q` accepts
+directly, mapping `firm_id` → `firm`, `quarter` → `origin`, and
+`forecast_horizon` → `horizon` on read.
+
+> **Why the Laplace file is twice the size.** Both parquets hold the same
+> 472,695,966 rows, but they were not written by the same tool. The Gaussian
+> file is this repository's own write (`forecast_io`: float32 payload, zstd,
+> dictionary-encoded); the Laplace file was pooled through DuckDB and stores
+> `prediction`/`sigma` as **float64**, PLAIN-encoded under snappy, with
+> `quarter` ahead of `target`. Same data, same column names, ~2× the bytes.
+> Both read identically — but do not infer coverage from file size.
+
+See the
 [benchmark repo's artifact tables](https://github.com/forma-lab-mccombs/proforma-20q#readme)
 for the full manifest, including the mask and its canonical row index.
 
