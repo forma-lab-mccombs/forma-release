@@ -19,7 +19,7 @@ Whole family (5 seeds -> per-seed parquets; combine with group_seed_forecasts.py
     python scripts/predict_forma.py --family forma_fgrid \
         --data-dir /path/to/proforma20q/data/processed --out results/forecasts
 
-The ProForma-20Q build directory must be the canonical R13 build
+The ProForma-20Q build directory must be the canonical build
 (``proforma20q build`` against the frozen canonical regularization stats): it
 supplies ``tuple_test`` and ``regularization_stats__*``.
 
@@ -278,7 +278,7 @@ def main() -> int:
     ap.add_argument("--checkpoint", type=Path, help="Checkpoint .ckpt (single-seed mode).")
     ap.add_argument("--family", choices=sorted(FAMILIES), help="Run all 5 seeds of a family.")
     ap.add_argument("--data-dir", type=Path, required=True,
-                    help="ProForma-20Q build directory (canonical R13): tuple_test + reg-stats + firm map.")
+                    help="ProForma-20Q build directory (canonical): tuple_test + reg-stats + firm map.")
     ap.add_argument("--out", type=Path, default=Path("results/forecasts"),
                     help="Output directory for per-seed forecast parquets.")
     ap.add_argument("--configs-dir", type=Path, default=REPO_ROOT / "configs")

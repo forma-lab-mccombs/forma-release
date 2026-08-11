@@ -11,9 +11,10 @@ shipped; this regenerates the forecasts from the shipped configs. Two variants:
 BUILD DEPENDENCY (important): the chained GBM consumes the `pf_full_glm` feature
 set under the `r13_node_optionD_indfe_val8_regfix` dataset tag. That build is NOT
 produced by `proforma20q build` (which builds the standard `pf_full` set); it is
-part of the research data pipeline. Absent that build, this script cannot run —
-the Table 1 GBM rows are otherwise reproduced from the original forecast parquets
-in the on-publication archival release. Requires the `[competitors]` extra.
+part of the research data pipeline. Absent that build, this script cannot run,
+and the original GBM forecast parquets are not distributed either — so outside
+the research pipeline the Table 1 GBM rows are neither reproducible from this
+script nor available as banked forecasts. Requires the `[competitors]` extra.
 """
 from __future__ import annotations
 

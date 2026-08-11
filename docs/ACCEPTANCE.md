@@ -176,8 +176,10 @@ time of that run — the agreement is the point, not the values.)
 - **Chained-GBM Table-1 rows.** Not re-scored. Their weights are not shipped and
   the GBM column additionally needs the `pf_full_glm` build, which
   `proforma20q build` does not produce. (The FFNN rows *were* verified — §2.)
-  The original forecast parquets that produced these rows are not distributed;
-  regenerate them with `scripts/regen_gbm.py`.
+  The original forecast parquets that produced these rows are not distributed
+  either, and `scripts/regen_gbm.py` depends on that same absent build — so
+  outside the research pipeline these rows are neither distributed nor
+  regenerable.
 - **Regeneration of forecasts from the shipped checkpoints.** Inference was
   measured at ~27.5 s/batch × 11,896 batches ≈ 91 h per seed on the CPU-only
   machine used here (no CUDA), i.e. ~19 days for the 5-seed family — it needs

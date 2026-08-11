@@ -184,7 +184,9 @@ ship.
   paper's "seeded regeneration scripts otherwise" clause). The original forecast
   parquets are in the [archival deposit](#released-forecast-parquets).
 - **Chained GBM** — training code, configs, and seeds ship; weights and forecast
-  parquets do not. Regenerate with `scripts/regen_gbm.py`.
+  parquets do not. `scripts/regen_gbm.py` regenerates them, but only from the
+  `pf_full_glm` build, which `proforma20q build` does not produce — so outside
+  the research pipeline these rows are neither distributed nor regenerable.
 - **Random Forest** — seeded regeneration script only (1,560 forests are too
   large to bank).
 - **Chronos-2** — zero-shot driver; weights pulled from the Hugging Face Hub
@@ -197,10 +199,10 @@ ship.
 
 The canonical Forma forecast — the exact file behind the paper's headline
 numbers — is **`forma_fgrid__pf_full__test__predictions.parquet`** (3.7 GB, md5
-`1820fcc9…`, 472,695,966 rows). It is the 5-seed Gaussian mixture, moment-matched
-to one row per forecasted cell, and it is what **Table 1 Panel A** scores:
-R² 0.289172 / MAE 0.408494 on the 327,244,429-cell Full sample. Pool your own
-model against this file.
+`1820fcc9…`). It is the 5-seed Gaussian mixture, moment-matched to one row per
+forecasted cell, and it is what **Table 1 Panel A** scores — its row count and
+the R²/MAE it reproduces are stated once, in the scoring note under
+[Reproduction map](#reproduction-map). Pool your own model against this file.
 
 These forecasts are too large for git, so they live in the archival deposit at
 **[doi:10.5281/zenodo.21269003](https://doi.org/10.5281/zenodo.21269003)**
@@ -226,8 +228,8 @@ density sidecar is pulled automatically alongside it. The companion files:
 
 Every file carries the canonical forecast schema — `firm_id`, `target`,
 `quarter`, `forecast_horizon`, `prediction`, `sigma`, `model` — which
-`proforma20q` accepts directly, normalizing the first, third, and fourth to its
-own `firm` / `origin` / `horizon` names on read. See the
+`proforma20q` accepts directly, mapping `firm_id` → `firm`, `quarter` → `origin`,
+and `forecast_horizon` → `horizon` on read. See the
 [benchmark repo's artifact tables](https://github.com/forma-lab-mccombs/proforma-20q#readme)
 for the full manifest, including the mask and its canonical row index.
 
