@@ -1,16 +1,16 @@
-# R13 FFNN LINEAR beta-NLL (beta=0.5), seed 60. Member of the 5-seed
+# FFNN LINEAR beta-NLL (beta=0.5), seed 60. Member of the 5-seed
 # linear mixture (seeds [60, 61, 62, 63, 64]). dropout-0.10 recipe, wd 0.0 (the r12 winner).
 # no_cv:true -> refits on train+val (1971-2009) for a FIXED `epochs` taken from the
 # r13_ffnn_betanll_cv run (ffnn_linear_b50 best-val epoch). seed-aware forecast name so the 5
 # seeds auto-group into a mixture-NLL family in evaluate.py.
 #
 # >>> SET `epochs` from r13_ffnn_betanll_cv (ffnn_linear_b50) BEFORE RUNNING (-1 = unset, fails fast). <<<
-# Reuses the R13 dataset built by r13_baselines.yaml - do NOT rebuild.
+# Reuses the canonical dataset built by r13_baselines.yaml - do NOT rebuild.
 #
 #   python -m forma.train --config configs/r13_ffnn_linear_betanll_seed60.yaml --forecast-splits test
 experiment:
   name: "r13_ffnn_linear_betanll_seed60"
-  description: "R13 FFNN linear Gaussian beta-NLL (beta=0.5), seed 60; 5-seed mixture member on the R13 8-year-val build. Epochs from the CV run; seed-aware forecast name."
+  description: "FFNN linear Gaussian beta-NLL (beta=0.5), seed 60; 5-seed mixture member on the canonical 8-year-val build. Epochs from the CV run; seed-aware forecast name."
 
 seed: 60               # top-level seed -> forecast seed token (must match parameters.seed below).
 
@@ -24,7 +24,7 @@ trainer:
 
 data:
   feature_set: "pf_full"
-  dataset_tag: "r13_node_optionD_indfe_val8"   # R13 8-year-val rebuild; train_end_year=2001 also moves the reg-stats cutoff. Build ONCE (see header).
+  dataset_tag: "r13_node_optionD_indfe_val8"   # canonical 8-year-val rebuild; train_end_year=2001 also moves the reg-stats cutoff. Build ONCE (see header).
   raw_path: "data/raw/compustat_with_permno.parquet"
   processed_dir: "data/processed"
   identities_path: "configs/identities.json"

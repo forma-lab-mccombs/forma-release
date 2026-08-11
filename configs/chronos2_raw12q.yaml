@@ -34,7 +34,7 @@ inference:
 
 data:
   feature_set: "pf_full"
-  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the R13 build; do NOT rebuild.
+  dataset_tag: "r13_node_optionD_indfe_val8"   # reuse the canonical build; do NOT rebuild.
   raw_path: "data/raw/compustat_with_permno.parquet"
   processed_dir: "data/processed"
   feature_sets_config: "configs/feature_sets.yaml"
@@ -42,7 +42,7 @@ data:
   num_workers: 8
   predict_batch_size: 32
   time_splits:
-    train_end_year: 2001   # train 1971-2001; val 2002-2009; test 2010+ (matches the R13 build).
+    train_end_year: 2001   # train 1971-2001; val 2002-2009; test 2010+ (matches the canonical build).
     val_end_year: 2009
   firm_id_map_path: "data/processed/firm_id_map.csv"
   account_id_map_path: "data/processed/account_id_map.csv"
@@ -96,6 +96,6 @@ models:
       point_stat: "mean"                 # primary file point: target-space mean (L2/R2-fair).
       write_median_sibling: true         # also write chronos_raw_med (median point, L1/MAE-fair) in the same pass.
       save_quantiles: true               # issue #246: persist the 21 native levels to a __quantiles.parquet sibling.
-      max_abs_zscore: 6.0                # match the r13 build's label clip (configs/r13_*: max_abs_zscore: 6.0).
+      max_abs_zscore: 6.0                # match the canonical build's label clip (configs/r13_*: max_abs_zscore: 6.0).
       # processed_dir / dataset_suffix / map paths are derived from the data module;
       # override here only if benchmarking against a different build.
