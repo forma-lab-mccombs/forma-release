@@ -1,8 +1,8 @@
 # Forma — model, competitors, and weights for ProForma-20Q
 
-Code, configurations, and trained **Forma** checkpoints for the GNN-Transformer
-pro-forma financial forecaster, plus code and configurations for the competitor
-models, benchmarked with the companion package
+Code, configurations, and trained **Forma** checkpoints for the tuple-set
+Transformer pro-forma financial forecaster, plus code and configurations for
+the competitor models, benchmarked with the companion package
 [`proforma-20q`](https://github.com/forma-lab-mccombs/proforma-20q).
 
 This repo is **inference-first**: a reviewer goes checkpoint → forecast parquet →

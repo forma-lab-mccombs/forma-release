@@ -10,7 +10,7 @@ if hasattr(torch, "compiler") and not hasattr(torch.compiler, "is_compiling"):
 """
 Master training script for all models.
 
-This script handles training of all model types (baseline and GNN-Transformer)
+This script handles training of all model types (baseline and Forma)
 using configuration files and walk-forward validation.
 """
 
@@ -187,7 +187,7 @@ def validate_config(config: Dict[str, Any], models_to_train: Dict[str, Any]) -> 
     """
     if config.get('inference', {}).get('reconcile'):
         for name, mcfg in models_to_train.items():
-            if (mcfg.get('type') in ('forma', 'gnn_transformer')
+            if (mcfg.get('type') == 'forma'
                     and mcfg.get('parameters', {}).get('loss_type') == 'mse'):
                 raise ValueError(
                     f"Model '{name}': inference.reconcile=true requires a variance head, "
@@ -209,7 +209,7 @@ def create_model(model_config: Dict[str, Any], data_config: Dict[str, Any] = Non
     model_type = model_config['type']
     model_params = model_config.get('parameters', {}).copy()  # Make a copy to avoid modifying original
 
-    if model_type == 'forma' or model_type == 'gnn_transformer':
+    if model_type == 'forma':
         # Determine num_account_types derived from data
         if data_config:
             processed_dir = Path(data_config.get('processed_dir', 'data/processed'))
@@ -322,7 +322,7 @@ def create_data_module(model_type: str, data_config: Dict[str, Any]):
     # feature_set comes from config -> data -> feature_set
     feature_set = data_config.get('feature_set', 'core')
     
-    if model_type == 'forma' or model_type == 'gnn_transformer':
+    if model_type == 'forma':
         # Prepare paths
         data_dir_path = Path(data_dir)
         account_map_path = data_dir_path / 'account_id_map.csv'

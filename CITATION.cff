@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "If you use Forma, please cite the companion paper and, where relevant, the archival forecast deposit."
-title: "Forma: A GNN-Transformer Pro-Forma Financial Statement Forecaster"
+title: "Forma: A Tuple-Set Transformer Pro-Forma Financial Statement Forecaster"
 abstract: >-
-  Forma is a GNN-Transformer that jointly forecasts the complete quarterly
+  Forma is a tuple-set Transformer that jointly forecasts the complete quarterly
   financial statements of U.S. public firms at horizons of 1 to 20 quarters,
   emitting a predictive distribution per statement item. This repository ships
   the model code, the configurations for Forma and every competitor in the
@@ -18,7 +18,7 @@ url: "https://github.com/forma-lab-mccombs/forma-release"
 keywords:
   - financial-statement-forecasting
   - probabilistic-forecasting
-  - gnn-transformer
+  - tuple-set-transformer
   - proforma-20q
   - Compustat
 identifiers:
