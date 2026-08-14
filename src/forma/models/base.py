@@ -2,7 +2,7 @@
 Base model interface for all forecasting models.
 
 This module defines the abstract BaseModel class that all models must inherit from
-to ensure consistent API across different model types (sklearn, XGBoost, GNN-Transformer, etc.).
+to ensure consistent API across different model types (sklearn, XGBoost, Forma, etc.).
 """
 
 from abc import ABC, abstractmethod
@@ -15,7 +15,7 @@ class BaseModel(ABC):
     """
     Abstract base class for all forecasting models.
     
-    All models (sklearn wrappers, XGBoost, GNN-Transformer, etc.) must inherit
+    All models (sklearn wrappers, XGBoost, Forma, etc.) must inherit
     from this class and implement the fit() and predict() methods.
     """
     

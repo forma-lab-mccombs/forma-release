@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "forma-release"
 version = "0.1.0"
-description = "Forma: code, configurations, and trained weights for the GNN-Transformer pro-forma forecaster and the competitors in the ProForma-20Q benchmark."
+description = "Forma: code, configurations, and trained weights for the tuple-set Transformer pro-forma forecaster and the competitors in the ProForma-20Q benchmark."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 keywords = [
-    "financial-forecasting", "gnn-transformer", "probabilistic-forecasting",
+    "financial-forecasting", "tuple-set-transformer", "probabilistic-forecasting",
     "quarterly-financials", "proforma-20q", "compustat",
 ]
 classifiers = [

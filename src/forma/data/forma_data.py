@@ -440,7 +440,7 @@ class FormaWindowDataset(Dataset):
             'account_ids': torch.from_numpy(account_ids_np).long(),
             'quarters': torch.from_numpy(quarters_np).long(),  # Already centered (q=0 is forecast date)
             'values_raw': torch.from_numpy(values_np).float(),  # Original raw values
-            'values_scaled': torch.from_numpy(values_scaled_np).float(),  # Scaled but not regularized (for GNN de-regularization)
+            'values_scaled': torch.from_numpy(values_scaled_np).float(),  # Scaled but not regularized (for constraint-layer de-regularization)
             'values': torch.from_numpy(values_regularized_np).float(),  # Fully regularized (for model input)
             'center_q_real': center_q,
             'scale': scale,
@@ -890,7 +890,7 @@ class FormaDataModule(L.LightningDataModule):
     Lightning DataModule for financial statement data.
     
     This DataModule handles loading and preprocessing of financial data
-    for the GNN-Transformer model.
+    for the Forma model.
     """
 
     def __init__(

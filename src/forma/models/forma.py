@@ -3,8 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import lightning as L
 import math
-from torch_geometric.utils import scatter, to_dense_batch
-from typing import Tuple
+from torch_geometric.utils import to_dense_batch
 from forma.data.transforms import de_regularize, get_derivative_s
 from forma.data.forma_data import _validate_industry_mode
 
@@ -67,7 +66,7 @@ class TimeEmbedding(nn.Module):
 class ConstraintCorrectionLayer(nn.Module):
     """Basis-invariant constraint correction layer (The Accountant).
 
-    Replaces scatter-based GNN message passing with a direct matrix solve:
+    Enforces the accounting identities with a direct matrix solve:
         Delta_v = S^{-2} A^T (A S^{-2} A^T + eps*I)^{-1} (-r)
     This correction is invariant under A -> M A for any invertible M.
     """
@@ -268,66 +267,6 @@ class ConstraintCorrectionLayer(nn.Module):
                                         batch_idx)
 
 
-class GNNLayer(nn.Module):
-    """Scatter-based GNN constraint layer (original message-passing approach).
-
-    Two-phase update:
-      Phase 1 (Account -> Identity): r_j = sum(sign_ji * v_i)
-      Phase 2 (Identity -> Account): lambda-based gradient messages, degree-normalized by rho
-    """
-
-    def __init__(self, d_model: int, rho: float, mean_projector: nn.Module, time_embedding: nn.Module):
-        super().__init__()
-        self.mean_projector = mean_projector
-        self.time_embedding = time_embedding
-        self.rho = rho
-
-        self.W_m_vec = nn.Parameter(torch.randn(d_model))
-        self.gamma = nn.Parameter(torch.tensor(1.0))
-        self.norm = nn.LayerNorm(d_model)
-
-    def forward(self, x: torch.Tensor, edge_index: torch.Tensor, edge_attr: torch.Tensor,
-                qs: torch.Tensor, reg_params: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-                node_type: torch.Tensor):
-        k, mu, sigma = reg_params
-
-        time_emb = self.time_embedding(qs)
-        h_cat = torch.cat([x, time_emb], dim=-1)
-        hat_x = self.mean_projector(h_cat).squeeze(-1)
-
-        v = de_regularize(hat_x, k, mu, sigma)
-
-        src, dst = edge_index
-
-        msg_to_id = edge_attr * v[src]
-        r = scatter(msg_to_id, dst, dim=0, dim_size=x.size(0), reduce='sum')
-
-        s = get_derivative_s(v, k, mu, sigma)
-
-        s_inv_sq = torch.pow(s[src], -2)
-        sum_s_inv_sq = scatter(s_inv_sq, dst, dim=0, dim_size=x.size(0), reduce='sum')
-        lambda_star = -r / (sum_s_inv_sq + 1e-8)
-
-        rev_src, rev_dst = dst, src
-
-        m_edge = lambda_star[rev_src] * edge_attr / (s[rev_dst] + 1e-8)
-
-        sum_m = scatter(m_edge, rev_dst, dim=0, dim_size=x.size(0), reduce='sum')
-
-        ones = torch.ones_like(m_edge)
-        deg = scatter(ones, rev_dst, dim=0, dim_size=x.size(0), reduce='sum')
-        deg = deg.clamp(min=1.0)
-
-        m_bar = sum_m / torch.pow(deg, self.rho)
-
-        g = torch.tanh(self.gamma * m_bar).unsqueeze(-1)
-        update = g * self.W_m_vec * m_bar.unsqueeze(-1)
-
-        h_new = self.norm(x + update)
-
-        return h_new
-
-
 class TransformerLayer(nn.Module):
     def __init__(self, d_model: int, n_heads: int, d_ff: int, dropout: float, 
                  use_temporal_bias: bool = True, use_same_account_bias: bool = False):
@@ -424,14 +363,12 @@ class TransformerLayer(nn.Module):
 
 class FormaBlock(nn.Module):
     def __init__(self, d_model, n_heads, d_ff, dropout, mean_projector, time_embedding,
-                 constraint_mode='correction', rho=1.0,
+                 constraint_mode='correction',
                  use_temporal_bias=True, use_same_account_bias=False):
         super().__init__()
         self.constraint_mode = constraint_mode
         if constraint_mode == 'correction':
             self.constraint = ConstraintCorrectionLayer(d_model, mean_projector, time_embedding)
-        elif constraint_mode == 'gnn':
-            self.constraint = GNNLayer(d_model, rho, mean_projector, time_embedding)
         elif constraint_mode == 'none':
             self.constraint = None
         else:
@@ -439,32 +376,6 @@ class FormaBlock(nn.Module):
         self.transformer = TransformerLayer(d_model, n_heads, d_ff, dropout,
                                             use_temporal_bias=use_temporal_bias,
                                             use_same_account_bias=use_same_account_bias)
-
-    def _expand_for_gnn(self, x, constraint_src, constraint_dst, constraint_sign,
-                        num_constraints, qs, reg_params):
-        """Convert COO constraint tensors to GNNLayer's edge_index format.
-
-        Pads identity node slots onto account-only tensors and builds
-        edge_index (Account -> Identity) + edge_attr for scatter ops.
-        """
-        n_acc = x.size(0)
-        n_id = int(num_constraints.sum().item())
-
-        x_exp = F.pad(x, (0, 0, 0, n_id))
-        qs_exp = torch.cat([qs, torch.zeros(n_id, device=x.device, dtype=qs.dtype)])
-
-        k, mu, sigma = reg_params
-        k_exp = torch.cat([k, torch.zeros(n_id, device=x.device, dtype=k.dtype)])
-        mu_exp = torch.cat([mu, torch.zeros(n_id, device=x.device, dtype=mu.dtype)])
-        sigma_exp = torch.cat([sigma, torch.ones(n_id, device=x.device, dtype=sigma.dtype)])
-
-        node_type = torch.zeros(n_acc + n_id, dtype=torch.long, device=x.device)
-        node_type[n_acc:] = 1
-
-        edge_index = torch.stack([constraint_dst, constraint_src + n_acc])
-        edge_attr = constraint_sign
-
-        return x_exp, edge_index, edge_attr, qs_exp, (k_exp, mu_exp, sigma_exp), node_type
 
     def forward(self, x, constraint_src, constraint_dst, constraint_sign, num_constraints,
                 num_constraint_edges, batch_idx, qs, reg_params, acc_ids=None,
@@ -475,13 +386,6 @@ class FormaBlock(nn.Module):
                                 num_constraints, num_constraint_edges, qs, reg_params, batch_idx,
                                 A_batched=A_batched, nc_per_graph=nc_per_graph,
                                 nn_per_graph=nn_per_graph)
-        elif self.constraint_mode == 'gnn':
-            n_acc = x.size(0)
-            x_exp, edge_index, edge_attr, qs_exp, reg_exp, node_type = \
-                self._expand_for_gnn(x, constraint_src, constraint_dst, constraint_sign,
-                                     num_constraints, qs, reg_params)
-            x_exp = self.constraint(x_exp, edge_index, edge_attr, qs_exp, reg_exp, node_type)
-            x = x_exp[:n_acc]
         # 'none': skip constraint enforcement entirely
 
         x = self.transformer(x, batch_idx, qs, acc_ids=acc_ids, is_industry=is_industry)
@@ -500,7 +404,6 @@ class FormaModel(L.LightningModule):
                  n_heads: int = 4,
                  d_ff: int = 512,
                  dropout: float = 0.1,
-                 rho: float = 1.0,
                  constraint_mode: str = 'correction',
                  lr: float = 1e-3,
                  weight_decay: float = 1e-2,
@@ -578,7 +481,7 @@ class FormaModel(L.LightningModule):
 
         self.blocks = nn.ModuleList([
             FormaBlock(d_model, n_heads, d_ff, dropout, self.mean_projector, self.time_embedding,
-                       constraint_mode=constraint_mode, rho=rho,
+                       constraint_mode=constraint_mode,
                        use_temporal_bias=use_temporal_bias,
                        use_same_account_bias=use_same_account_bias)
             for _ in range(n_layers)
