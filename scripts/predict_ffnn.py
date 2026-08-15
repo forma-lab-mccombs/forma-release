@@ -5,8 +5,10 @@ FFNN training fuses fit->predict: one `forma.train` run per seed config both
 trains and writes the forecast parquet. Trained FFNN weights are NOT shipped
 (the paper's "seeded regeneration scripts otherwise" clause); the original
 per-seed forecasts that produced Table 1's FFNN rows (Full R^2 0.253 / 0.247)
-are in the archival deposit at doi:10.5281/zenodo.21269003. This script
-regenerates them from the shipped configs + seeds.
+are published at
+https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts
+(non-commercial, WRDS-conditioned licence). This script regenerates them from
+the shipped configs + seeds.
 
 Run from a directory whose `data/processed` is a canonical ProForma-20Q build
 (`proforma20q build` against the frozen canonical regularization stats), or pass

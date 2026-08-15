@@ -1,20 +1,26 @@
-# Forma — model, competitors, and weights for ProForma-20Q
+# Forma — model and competitor code for ProForma-20Q
 
-Code, configurations, and trained **Forma** checkpoints for the tuple-set
-Transformer pro-forma financial forecaster, plus code and configurations for
-the competitor models, benchmarked with the companion package
+Code and configurations for the tuple-set Transformer pro-forma financial
+forecaster, plus code and configurations for the competitor models, benchmarked
+with the companion package
 [`proforma-20q`](https://github.com/forma-lab-mccombs/proforma-20q).
+
+> **This repository contains source code and configuration only.** The trained
+> Forma weights are **not** distributed here. They are published separately on
+> the Hugging Face Hub under a non-commercial research licence — see
+> [Getting the weights](#getting-the-weights). The Apache-2.0 licence on this
+> repository covers the code and configs, not the weights.
 
 This repo is **inference-first**: a reviewer goes checkpoint → forecast parquet →
 `proforma20q evaluate` → the paper's Table 1 numbers. It ships **no data**.
 Real-data reproduction requires WRDS/Compustat credentials and the companion
 package's dataset build.
 
-**Verified:** the shipped checkpoints are bit-identical to the originals, and the
-canonical artifacts reproduce Panel A — Forma **R² 0.289** (exact to 17
-significant figures) and the FFNN rows **0.253 / 0.247** — plus Panel C
-(**NLL 0.160 / CRPS 0.293**), all on the published 327,244,429-cell sample.
-Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
+**Verified:** the published checkpoints carry tensors bit-identical to the
+originals, and the canonical artifacts reproduce Panel A — Forma **R² 0.289**
+(exact to 17 significant figures) and the FFNN rows **0.253 / 0.247** — plus
+Panel C (**NLL 0.160 / CRPS 0.293**), all on the published 327,244,429-cell
+sample. Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
 
 ## Division of labour with the benchmark package
 
@@ -22,7 +28,8 @@ Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
 point metrics (Table 1 Panels A/B), and the reference baselines. This repo adds
 only what the benchmark does not yet cover:
 
-- the Forma model, its trained weights, and the competitor code/configs;
+- the Forma model code and the competitor code/configs (weights are on the
+  Hugging Face Hub, see [Getting the weights](#getting-the-weights));
 - the **exact 5-seed mixture** density scores (Panel C) — `scripts/mixture_calibration.py`
   plus the streaming slice in `forma.scoring`;
 - the **Diebold-Mariano** significance machinery — `scripts/dm_tests.py`.
@@ -89,6 +96,43 @@ CI exercises it on considerably newer releases than the lockfile. Use the
 lockfile when you want the exact environment behind the recorded digits; use the
 plain install for everything else.
 
+## Getting the weights
+
+The trained Forma checkpoints are **not in this repository**. They are published
+on the Hugging Face Hub at
+**[`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma)**
+under the **Forma Non-Commercial Research Licence v1.0** (`forma-nc-1.0`) —
+non-commercial academic research only, no redistribution, attribution required.
+All commercial rights are reserved to The University of Texas at Austin;
+commercial licensing enquiries go to UT Discovery to Impact
+(`ip@discoveries.utexas.edu`). The Apache-2.0 licence in this repository does
+**not** extend to those files; the licence text on the Hub governs them.
+
+The repo is gated, so you need a Hugging Face account and must accept the terms
+on the model page first:
+
+```bash
+pip install -U "huggingface_hub[cli]"
+hf auth login
+hf download forma-lab-mccombs/forma --include "checkpoints/*" --local-dir checkpoints
+```
+
+`--local-dir checkpoints` puts them where `predict_forma.py` looks by default;
+point `--checkpoints-dir` elsewhere if you prefer. A local `checkpoints/` is
+git-ignored, so a download can't be committed back into this repository.
+
+The Hub repo also carries two files the weights are inert without:
+
+| file | why |
+|---|---|
+| `reference/regularization_stats.parquet` | per-(account, quarter) μ / σ / k — **required** to encode inputs and decode outputs |
+| `reference/account_id_map.csv` | the account embedding is indexed by this ordering |
+
+The `account_id_map` / `industry_id_map` under `src/forma/metadata/` in this
+repository are the same checkpoint-coupled maps and are what the inference path
+actually reads; `predict_forma.py` validates them against the checkpoint's
+embedding dimensions before running.
+
 ## Data prerequisite
 
 All real-data commands consume a canonical ProForma-20Q build. Build it once with
@@ -124,7 +168,7 @@ the build, so the trained embeddings are never permuted.
 One row per paper exhibit → command. `<build>` is your `proforma20q build` output
 dir (e.g. `data/processed`); `<mask>` is the Full-sample mask
 (`full_sample_mask_bits.npy`, [shipped in the benchmark repo](https://github.com/forma-lab-mccombs/proforma-20q/blob/main/artifacts/full_sample_mask_bits.npy);
-a byte-identical copy is in the [archival deposit](#released-forecast-parquets)).
+a byte-identical copy is in the [artifacts dataset](#released-forecast-parquets)).
 Point metrics are scored by `proforma20q evaluate`; the density track (Panel C)
 by `mixture_calibration.py`.
 
@@ -178,11 +222,14 @@ ship.
 
 ## What ships vs. what is regenerated
 
-- **Forma** — trained checkpoints ship in-repo (`checkpoints/`): 5 seeds each for
-  the Gaussian (`forma_fgrid`) and Laplace (`forma_lap05_fgrid`) families.
+- **Forma** — trained checkpoints are published on the Hugging Face Hub
+  ([`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma),
+  non-commercial licence), **not** in this repository: 5 seeds each for the
+  Gaussian (`forma_fgrid`) and Laplace (`forma_lap05_fgrid`) families. See
+  [Getting the weights](#getting-the-weights).
 - **FFNN** — training code, configs, and seeds ship; **weights do not** (the
   paper's "seeded regeneration scripts otherwise" clause). The original forecast
-  parquets are in the [archival deposit](#released-forecast-parquets).
+  parquets are in the [artifacts dataset](#released-forecast-parquets).
 - **Chained GBM** — training code, configs, and seeds ship; weights and forecast
   parquets do not. `scripts/regen_gbm.py` regenerates them, but only from the
   `pf_full_glm` build, which `proforma20q build` does not produce — so outside
@@ -204,27 +251,44 @@ forecasted cell, and it is what **Table 1 Panel A** scores — its row count and
 the R²/MAE it reproduces are stated once, in the scoring note under
 [Reproduction map](#reproduction-map). Pool your own model against this file.
 
-These forecasts are too large for git, so they live in the archival deposit at
-**[doi:10.5281/zenodo.21269003](https://doi.org/10.5281/zenodo.21269003)**
-(CC BY 4.0, ~21.6 GiB total). Nothing here requires them — every command in the
-[reproduction map](#reproduction-map) regenerates its forecast from the shipped
+These forecasts are too large for git, so they are published on the Hugging Face
+Hub at
+**[`forma-lab-mccombs/proforma-20q-artifacts`](https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts)**
+(~21.6 GiB total), under the **Forma Non-Commercial Research Licence
+(WRDS-Conditioned) v1.0** (`forma-nc-wrds-1.0`): non-commercial academic research
+only, no redistribution, and **you must hold your own current Compustat/WRDS
+licence**. The dataset is gated — accept the terms on the dataset page first.
+
+Nothing here requires these files — every command in the
+[reproduction map](#reproduction-map) regenerates its forecast from the
 checkpoints and configs — but they let you score against the paper's exact bytes
 without a rebuild:
 
 ```bash
-python /path/to/proforma-20q/scripts/download_artifacts.py --out data/artifacts \
-    --only forma_fgrid__pf_full__test__predictions.parquet
+hf download forma-lab-mccombs/proforma-20q-artifacts --repo-type dataset \
+    --include "forecasts/forma_fgrid__pf_full__test__predictions.parquet" \
+    --local-dir data/artifacts
 ```
 
-Downloads stage under `.part` and are rejected on md5 mismatch; a parquet's
-density sidecar is pulled automatically alongside it. The companion files:
+`hf download` verifies each file against the Hub's recorded digest and resumes
+partial transfers. Pull a parquet's density sidecar explicitly — it is a separate
+file. The companion files, all under `forecasts/`:
 
-| artifact | size | md5 | for |
-|---|---|---|---|
-| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 7.4 GiB | `1e8b0415…` | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
-| `forma_lap05_fgrid__pf_full__test__predictions.nll.json` | 33 B | `a3d8659a…` | that file's **family sidecar**. Keep it next to the parquet — without it the evaluator **silently scores the file as Gaussian**. |
-| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GiB | `e419c833…` | **FFNN (linear)** comparator row |
-| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GiB | `915779a3…` | **FFNN (large)** comparator row |
+| artifact | size | for |
+|---|---|---|
+| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 7.4 GiB | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
+| `forma_lap05_fgrid__pf_full__test__predictions.nll.json` | 33 B | that file's **family sidecar**. Keep it next to the parquet — without it the evaluator **silently scores the file as Gaussian**. |
+| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GiB | **FFNN (linear)** comparator row |
+| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GiB | **FFNN (large)** comparator row |
+
+The same dataset repo carries the Full-sample mask under `mask/` and the
+per-horizon calibration series under `calibration/`.
+
+A companion dataset,
+**[`forma-lab-mccombs/forma-usd-forecasts`](https://huggingface.co/datasets/forma-lab-mccombs/forma-usd-forecasts)**
+(~12.4 GiB, same licence), publishes the forecasts in USD levels rather than the
+model's asinh z-score space. Nothing in this repository consumes it; see that
+repo for its schema and provenance.
 
 Every file carries the same seven columns — `firm_id`, `target`, `quarter`,
 `forecast_horizon`, `prediction`, `sigma`, `model` — which `proforma20q` accepts
@@ -245,21 +309,34 @@ for the full manifest, including the mask and its canonical row index.
 
 ## Checkpoint inventory
 
-All ten Forma checkpoints: **942,275 parameters** each, ~11.38 MB. md5 (shipped,
-post callback-strip):
+All ten Forma checkpoints hold **942,275** tensor entries each (942,210 trainable
+parameters + 65 buffers), ~11.38 MB. These files are **not in this repository** —
+they are the ones hosted at
+[`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma); the
+md5s below are of the **Hub-hosted files**, so you can verify a download:
 
-| checkpoint | md5 |
+| checkpoint (on the Hub, under `checkpoints/`) | md5 |
 |---|---|
-| `forma_fgrid_seed60.ckpt` | `a3a82b078cbbc7078e1b948f30eddfbc` |
-| `forma_fgrid_seed61.ckpt` | `b0c7969282a8dad303c3941d89810feb` |
-| `forma_fgrid_seed62.ckpt` | `2dd994d0e519c02f38babe7822723410` |
-| `forma_fgrid_seed63.ckpt` | `d10dea6baaa357b84b9b21c09fd4cd9e` |
-| `forma_fgrid_seed64.ckpt` | `cb0800c14c822860ca7f8977133e16a6` |
-| `forma_lap05_fgrid_seed60.ckpt` | `2d5bbd2e0d111cc5cd51b730d824a30f` |
-| `forma_lap05_fgrid_seed61.ckpt` | `f51fcb3785f90062092eeb03d212bf95` |
-| `forma_lap05_fgrid_seed62.ckpt` | `aff2481c93c762ccafec4cf6e256ecfa` |
-| `forma_lap05_fgrid_seed63.ckpt` | `41651c5154c32b93432151539fd20130` |
-| `forma_lap05_fgrid_seed64.ckpt` | `65b6442d24f0343563df9e5813d23a50` |
+| `forma_fgrid_seed60.ckpt` | `65d5f8743c30f3f107507cbdc5535eda` |
+| `forma_fgrid_seed61.ckpt` | `7204edf9e5e7873471c342c1387c5fa9` |
+| `forma_fgrid_seed62.ckpt` | `34ff32ce3e666b5c14d03057fcf8b5d9` |
+| `forma_fgrid_seed63.ckpt` | `b13c11962cce5d183ab6f090e625fc62` |
+| `forma_fgrid_seed64.ckpt` | `2f9376564837d53010ec6105810036e1` |
+| `forma_lap05_fgrid_seed60.ckpt` | `12810fa23d216ca7335fcced930e50c3` |
+| `forma_lap05_fgrid_seed61.ckpt` | `2a06f6c680699983044a4712e340a977` |
+| `forma_lap05_fgrid_seed62.ckpt` | `69688ba7914c986001e4890bf55091b7` |
+| `forma_lap05_fgrid_seed63.ckpt` | `009e13bb57d0999994b3e5d0cda5be1a` |
+| `forma_lap05_fgrid_seed64.ckpt` | `3cf81854a9b27bc11b07d7e8f6b201eb` |
+
+> **These digests differ from the ones this README carried while the
+> checkpoints were distributed here, and that is expected.** The former copies
+> had the PyTorch-Lightning `callbacks` blob stripped (see
+> [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) §1); the Hub copies retain it, so
+> the files are a few KB smaller and every md5 changes. The **tensors are
+> bit-identical** — all 62 entries of every state dict compare equal under
+> `torch.equal` across all ten checkpoints, and both families load through
+> `FormaModel.load_from_checkpoint` at 942,275 entries. Forecasts are
+> unchanged; only the container bytes differ.
 
 ## Release documentation
 
@@ -290,7 +367,6 @@ src/forma/            Forma model, tuple dataset/collators, inference (forma.tra
                       and a torch-free density-scoring slice (forma.scoring)
 src/forma/metadata/   checkpoint-coupled account/industry id maps (ship with the model)
 configs/              Forma + competitor configs, accounting identities
-checkpoints/          the 10 trained Forma checkpoints
 docs/                 ACCEPTANCE.md + release_documentation.pdf (Parts A/B/C)
 results_panels/       per-horizon calibration + metric series for the canonical run
 scripts/              predict_forma / predict_ffnn / regen_* / density + DM scorers
@@ -300,4 +376,22 @@ tests/                scoring-math tests + a WRDS-free synthetic pipeline smoke 
 
 ## License
 
-Apache-2.0. NO DATA IS DISTRIBUTED — see `NOTICE`.
+**Apache-2.0 — covering the source code and configuration files in this
+repository, and nothing else.** NO DATA IS DISTRIBUTED — see `NOTICE`.
+
+Trained model weights are **not** distributed here. They are published on the
+Hugging Face Hub and licensed separately:
+
+| artifact | where | licence |
+|---|---|---|
+| this repository (code, configs) | GitHub | **Apache-2.0** |
+| trained Forma checkpoints | [`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma) | **Forma Non-Commercial Research Licence v1.0** (`forma-nc-1.0`) |
+| released forecast parquets, mask, calibration | [`forma-lab-mccombs/proforma-20q-artifacts`](https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts) | **Forma NC Research Licence (WRDS-Conditioned) v1.0** (`forma-nc-wrds-1.0`) |
+| USD-level forecasts | [`forma-lab-mccombs/forma-usd-forecasts`](https://huggingface.co/datasets/forma-lab-mccombs/forma-usd-forecasts) | **Forma NC Research Licence (WRDS-Conditioned) v1.0** |
+
+The non-commercial licences permit academic research use only and reserve all
+commercial rights to The University of Texas at Austin; the WRDS-conditioned
+ones additionally require you to hold your own current Compustat/WRDS licence.
+Commercial licensing enquiries: UT Discovery to Impact,
+`ip@discoveries.utexas.edu`. The authoritative terms are the `LICENSE.md` in
+each Hub repository — the summaries here are not a substitute.

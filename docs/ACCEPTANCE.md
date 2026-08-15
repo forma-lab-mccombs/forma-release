@@ -15,7 +15,18 @@ full float precision. Every result below is on the published common sample of
 
 ## 1. Checkpoint integrity
 
-The ten shipped checkpoints were exported from the originals by stripping the
+> **Note (post-release).** This section records the acceptance run performed when
+> the checkpoints were distributed inside this repository. They no longer are:
+> the weights are published on the Hugging Face Hub at
+> [`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma)
+> under a non-commercial licence. The Hub copies **retain** the `callbacks` blob
+> described below rather than having it stripped, so their file digests differ
+> from the copies this section was run against; their tensors were re-verified as
+> bit-identical (62/62 per checkpoint, all ten) and they load through
+> `FormaModel.load_from_checkpoint` at 942,275 entries. The findings below stand
+> as recorded.
+
+The ten formerly shipped checkpoints were exported from the originals by stripping the
 Lightning `callbacks` blob (which carried a relative `results/<expdir>/…` path).
 Re-serialization is a corruption risk, so it was checked directly rather than
 inferred: for each checkpoint, every `state_dict` tensor was compared against

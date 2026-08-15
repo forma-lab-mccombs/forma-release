@@ -1,15 +1,17 @@
 cff-version: 1.2.0
-message: "If you use Forma, please cite the companion paper and, where relevant, the archival forecast deposit."
+message: "If you use Forma, please cite the companion paper and, where relevant, the published weight and forecast artifacts."
 title: "Forma: A Tuple-Set Transformer Pro-Forma Financial Statement Forecaster"
 abstract: >-
   Forma is a tuple-set Transformer that jointly forecasts the complete quarterly
   financial statements of U.S. public firms at horizons of 1 to 20 quarters,
   emitting a predictive distribution per statement item. This repository ships
-  the model code, the configurations for Forma and every competitor in the
-  ProForma-20Q benchmark, and the trained Forma checkpoints -- five seeds each
-  for the Gaussian and Laplace families -- so a reader goes from checkpoint to
-  forecast to the paper's published numbers. It ships no data; real-data
-  reproduction uses the companion ProForma-20Q package and WRDS credentials.
+  the model code and the configurations for Forma and every competitor in the
+  ProForma-20Q benchmark. It contains source code and configuration only: the
+  trained Forma checkpoints -- five seeds each for the Gaussian and Laplace
+  families -- are published separately on the Hugging Face Hub under a
+  non-commercial research licence, and the Apache-2.0 licence here does not
+  extend to them. It ships no data; real-data reproduction uses the companion
+  ProForma-20Q package and WRDS credentials.
 type: software
 version: 0.1.0
 license: Apache-2.0
@@ -22,11 +24,16 @@ keywords:
   - proforma-20q
   - Compustat
 identifiers:
-  - type: doi
-    value: 10.5281/zenodo.21269003
+  - type: url
+    value: "https://huggingface.co/forma-lab-mccombs/forma"
     description: >-
-      Archival deposit of the canonical Forma forecast parquets, the FFNN
-      comparators, and the Full-sample evaluation mask.
+      Trained Forma checkpoints (five seeds each for the Gaussian and Laplace
+      families), under the Forma Non-Commercial Research Licence v1.0.
+  - type: url
+    value: "https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts"
+    description: >-
+      Canonical Forma forecast parquets, the FFNN comparators, and the
+      Full-sample evaluation mask.
 authors:
   - family-names: "Johnson"
     given-names: "Travis L."

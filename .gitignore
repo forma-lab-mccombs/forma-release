@@ -1,7 +1,9 @@
 # ---------------------------------------------------------------------------
 # HARD RULE: no WRDS-derived content in git, ever. No data files, no forecast
-# parquets. Only code, configs, the small checkpoint-coupled id maps, and the
-# Forma checkpoints live in the repo.
+# parquets. Only code, configs, and the small checkpoint-coupled id maps live in
+# the repo. Trained weights are NOT distributed here -- they are on the Hugging
+# Face Hub under a non-commercial licence (see README.md), and the rule below
+# keeps a local download from being committed back.
 # ---------------------------------------------------------------------------
 # Anchored to the repo root ON PURPOSE. An unanchored `data/` also matches the
 # package's own `src/forma/data/` subpackage, which silently kept the tuple
@@ -24,6 +26,14 @@
 # ...and any aggregate-level (by-horizon / by-quarter) CSVs committed to render
 # the F1/F2 figures. Firm-level CSVs stay ignored by the rule above.
 !results_panels/**/*.csv
+
+# Trained weights are licensed separately and must never be committed here.
+# `hf download ... --local-dir checkpoints` puts them exactly where this bites.
+/checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
 
 # WRDS credentials must never be committed.
 .pgpass

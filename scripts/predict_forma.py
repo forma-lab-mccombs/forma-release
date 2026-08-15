@@ -6,6 +6,14 @@ so the forecasts reproduce the published Table 1 numbers bit-for-bit. On top of 
 this script enforces the checkpoint<->id-map contract that silent-corruption depends
 on, and takes its tuple/reg-stats inputs from a ProForma-20Q build directory.
 
+The trained checkpoints are NOT in this repository; they are published on the
+Hugging Face Hub under a non-commercial licence (see README, "Getting the
+weights"). Fetch them into ``checkpoints/`` -- the default ``--checkpoints-dir``
+-- with::
+
+    hf download forma-lab-mccombs/forma --include "checkpoints/*" \
+        --local-dir checkpoints
+
 Typical use (one seed):
 
     python scripts/predict_forma.py \
@@ -27,7 +35,7 @@ It does NOT supply ``firm_id_map.csv`` -- the build computes that map and
 discards it (upstream proforma-20q issue #13) -- so pass either ``--firm-map``
 or ``--derive-firm-map-from-raw``; without one of them this script stops and
 says so. The account/industry id maps are taken from THIS repo (they are
-coupled to the shipped checkpoints, see below), never from the build.
+coupled to the trained checkpoints, see below), never from the build.
 """
 from __future__ import annotations
 
