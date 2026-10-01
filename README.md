@@ -381,6 +381,10 @@ requires a separate licence: contact UT Discovery to Impact at
 `discovery-to-impact-licensing@utexas.edu`. NO DATA IS DISTRIBUTED — see
 `NOTICE`.
 
+Earlier versions of this repository included an Apache-2.0 license, which was
+applied in error; the University has advised that it did not authorize that
+license.
+
 Trained model weights and released forecasts are **not** distributed here. They
 are published on gated Hugging Face Hub repositories, and the terms presented on
 each Hub page govern those files:
