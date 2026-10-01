@@ -1,13 +1,14 @@
 Forma (forma-release)
-Copyright 2026 The ProForma-20Q Authors
+Copyright 2026 The University of Texas at Austin
 
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this software except in compliance with the License. You may obtain a copy of
-the License at http://www.apache.org/licenses/LICENSE-2.0
+Licensed under The University of Texas at Austin Research License, Version 1.1
+(see LICENSE). Commercial Distribution, as defined in that License, requires a
+separate licence from the University: contact UT Discovery to Impact at
+discovery-to-impact-licensing@utexas.edu.
 
-The Apache-2.0 license of this repository covers the source code and
-configuration files only. Trained model checkpoints are not distributed in this
-repository and are licensed separately (see README.md).
+Trained model checkpoints are not distributed in this repository. They are
+published separately on gated Hugging Face Hub repositories, and the terms
+presented there govern them (see README.md).
 
 This repository releases the model code and configurations for Forma on the
 ProForma-20Q benchmark, plus code and configurations for the competitor models.

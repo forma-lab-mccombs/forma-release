@@ -8,13 +8,13 @@ abstract: >-
   the model code and the configurations for Forma and every competitor in the
   ProForma-20Q benchmark. It contains source code and configuration only: the
   trained Forma checkpoints -- five seeds each for the Gaussian and Laplace
-  families -- are published separately on the Hugging Face Hub under a
-  non-commercial research licence, and the Apache-2.0 licence here does not
-  extend to them. It ships no data; real-data reproduction uses the companion
+  families -- are published separately on the Hugging Face Hub under their
+  own licence terms, and the licence here does not extend to them. It ships
+  no data; real-data reproduction uses the companion
   ProForma-20Q package and WRDS credentials.
 type: software
 version: 0.1.0
-license: Apache-2.0
+license-url: "https://github.com/forma-lab-mccombs/forma-release/blob/main/LICENSE"
 repository-code: "https://github.com/forma-lab-mccombs/forma-release"
 url: "https://github.com/forma-lab-mccombs/forma-release"
 keywords:
@@ -28,7 +28,7 @@ identifiers:
     value: "https://huggingface.co/forma-lab-mccombs/forma"
     description: >-
       Trained Forma checkpoints (five seeds each for the Gaussian and Laplace
-      families), under the Forma Non-Commercial Research Licence v1.0.
+      families), access-gated under the licence terms on that page.
   - type: url
     value: "https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts"
     description: >-

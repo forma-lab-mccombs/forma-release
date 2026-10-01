@@ -7,7 +7,7 @@ this script enforces the checkpoint<->id-map contract that silent-corruption dep
 on, and takes its tuple/reg-stats inputs from a ProForma-20Q build directory.
 
 The trained checkpoints are NOT in this repository; they are published on the
-Hugging Face Hub under a non-commercial licence (see README, "Getting the
+Hugging Face Hub under separate licence terms (see README, "Getting the
 weights"). Fetch them into ``checkpoints/`` -- the default ``--checkpoints-dir``
 -- with::
 

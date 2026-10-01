@@ -7,7 +7,7 @@ trains and writes the forecast parquet. Trained FFNN weights are NOT shipped
 per-seed forecasts that produced Table 1's FFNN rows (Full R^2 0.253 / 0.247)
 are published at
 https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts
-(non-commercial, WRDS-conditioned licence). This script regenerates them from
+(gated; the dataset page presents its licence terms). This script regenerates them from
 the shipped configs + seeds.
 
 Run from a directory whose `data/processed` is a canonical ProForma-20Q build

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Forma: code, configurations, and trained weights for the tuple-set Transformer pro-forma forecaster and the competitors in the ProForma-20Q benchmark."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+license = { file = "LICENSE" }
 keywords = [
     "financial-forecasting", "tuple-set-transformer", "probabilistic-forecasting",
     "quarterly-financials", "proforma-20q", "compustat",
@@ -16,7 +16,7 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
