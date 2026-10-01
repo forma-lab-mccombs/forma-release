@@ -7,9 +7,9 @@ with the companion package
 
 > **This repository contains source code and configuration only.** The trained
 > Forma weights are **not** distributed here. They are published separately on
-> the Hugging Face Hub under a non-commercial research licence — see
-> [Getting the weights](#getting-the-weights). The Apache-2.0 licence on this
-> repository covers the code and configs, not the weights.
+> the Hugging Face Hub under their own licence terms — see
+> [Getting the weights](#getting-the-weights). This repository's
+> [licence](#license) covers the code and configs, not the weights.
 
 This repo is **inference-first**: a reviewer goes checkpoint → forecast parquet →
 `proforma20q evaluate` → the paper's Table 1 numbers. It ships **no data**.
@@ -101,12 +101,10 @@ plain install for everything else.
 The trained Forma checkpoints are **not in this repository**. They are published
 on the Hugging Face Hub at
 **[`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma)**
-under the **Forma Non-Commercial Research Licence v1.0** (`forma-nc-1.0`) —
-non-commercial academic research only, no redistribution, attribution required.
-All commercial rights are reserved to The University of Texas at Austin;
-commercial licensing enquiries go to UT Discovery to Impact
-(`ip@discoveries.utexas.edu`). The Apache-2.0 licence in this repository does
-**not** extend to those files; the licence text on the Hub governs them.
+under the licence terms presented on the model page, which govern those files;
+this repository's licence does **not** extend to them. Commercial licensing
+enquiries go to UT Discovery to Impact
+(`discovery-to-impact-licensing@utexas.edu`).
 
 The repo is gated, so you need a Hugging Face account and must accept the terms
 on the model page first:
@@ -224,7 +222,7 @@ ship.
 
 - **Forma** — trained checkpoints are published on the Hugging Face Hub
   ([`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma),
-  non-commercial licence), **not** in this repository: 5 seeds each for the
+  separate licence terms), **not** in this repository: 5 seeds each for the
   Gaussian (`forma_fgrid`) and Laplace (`forma_lap05_fgrid`) families. See
   [Getting the weights](#getting-the-weights).
 - **FFNN** — training code, configs, and seeds ship; **weights do not** (the
@@ -254,10 +252,9 @@ the R²/MAE it reproduces are stated once, in the scoring note under
 These forecasts are too large for git, so they are published on the Hugging Face
 Hub at
 **[`forma-lab-mccombs/proforma-20q-artifacts`](https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts)**
-(~21.6 GiB total), under the **Forma Non-Commercial Research Licence
-(WRDS-Conditioned) v1.0** (`forma-nc-wrds-1.0`): non-commercial academic research
-only, no redistribution, and **you must hold your own current Compustat/WRDS
-licence**. The dataset is gated — accept the terms on the dataset page first.
+(~21.6 GiB total), under the licence terms presented on the dataset page, which
+govern those files. The dataset is gated — accept the terms on the dataset page
+first.
 
 Nothing here requires these files — every command in the
 [reproduction map](#reproduction-map) regenerates its forecast from the
@@ -286,7 +283,7 @@ per-horizon calibration series under `calibration/`.
 
 A companion dataset,
 **[`forma-lab-mccombs/forma-usd-forecasts`](https://huggingface.co/datasets/forma-lab-mccombs/forma-usd-forecasts)**
-(~12.4 GiB, same licence), publishes the forecasts in USD levels rather than the
+(~12.4 GiB, gated on the same footing), publishes the forecasts in USD levels rather than the
 model's asinh z-score space. Nothing in this repository consumes it; see that
 repo for its schema and provenance.
 
@@ -376,22 +373,24 @@ tests/                scoring-math tests + a WRDS-free synthetic pipeline smoke 
 
 ## License
 
-**Apache-2.0 — covering the source code and configuration files in this
-repository, and nothing else.** NO DATA IS DISTRIBUTED — see `NOTICE`.
+Copyright 2026 The University of Texas at Austin. The source code and
+configuration files in this repository are made available under
+**The University of Texas at Austin Research License, Version 1.1** — see
+[`LICENSE`](LICENSE). Commercial Distribution, as that License defines it,
+requires a separate licence: contact UT Discovery to Impact at
+`discovery-to-impact-licensing@utexas.edu`. NO DATA IS DISTRIBUTED — see
+`NOTICE`.
 
-Trained model weights are **not** distributed here. They are published on the
-Hugging Face Hub and licensed separately:
+Earlier versions of this repository included an Apache-2.0 license, which was
+applied in error; the University has advised that it did not authorize that
+license.
 
-| artifact | where | licence |
-|---|---|---|
-| this repository (code, configs) | GitHub | **Apache-2.0** |
-| trained Forma checkpoints | [`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma) | **Forma Non-Commercial Research Licence v1.0** (`forma-nc-1.0`) |
-| released forecast parquets, mask, calibration | [`forma-lab-mccombs/proforma-20q-artifacts`](https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts) | **Forma NC Research Licence (WRDS-Conditioned) v1.0** (`forma-nc-wrds-1.0`) |
-| USD-level forecasts | [`forma-lab-mccombs/forma-usd-forecasts`](https://huggingface.co/datasets/forma-lab-mccombs/forma-usd-forecasts) | **Forma NC Research Licence (WRDS-Conditioned) v1.0** |
+Trained model weights and released forecasts are **not** distributed here. They
+are published on gated Hugging Face Hub repositories, and the terms presented on
+each Hub page govern those files:
 
-The non-commercial licences permit academic research use only and reserve all
-commercial rights to The University of Texas at Austin; the WRDS-conditioned
-ones additionally require you to hold your own current Compustat/WRDS licence.
-Commercial licensing enquiries: UT Discovery to Impact,
-`ip@discoveries.utexas.edu`. The authoritative terms are the `LICENSE.md` in
-each Hub repository — the summaries here are not a substitute.
+| artifact | where |
+|---|---|
+| trained Forma checkpoints | [`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma) |
+| released forecast parquets, mask, calibration | [`forma-lab-mccombs/proforma-20q-artifacts`](https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts) |
+| USD-level forecasts | [`forma-lab-mccombs/forma-usd-forecasts`](https://huggingface.co/datasets/forma-lab-mccombs/forma-usd-forecasts) |

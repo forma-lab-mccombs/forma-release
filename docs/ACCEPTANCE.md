@@ -19,7 +19,7 @@ full float precision. Every result below is on the published common sample of
 > the checkpoints were distributed inside this repository. They no longer are:
 > the weights are published on the Hugging Face Hub at
 > [`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma)
-> under a non-commercial licence. The Hub copies **retain** the `callbacks` blob
+> under separate licence terms. The Hub copies **retain** the `callbacks` blob
 > described below rather than having it stripped, so their file digests differ
 > from the copies this section was run against; their tensors were re-verified as
 > bit-identical (62/62 per checkpoint, all ten) and they load through
