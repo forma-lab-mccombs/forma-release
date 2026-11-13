@@ -28,13 +28,14 @@
 FFNN training fuses fit->predict: one `forma.train` run per seed config both
 trains and writes the forecast parquet. Trained FFNN weights are NOT shipped
 (the paper's "seeded regeneration scripts otherwise" clause); the original
-per-seed forecasts that produced Table 1's FFNN rows (Full R^2 0.253 / 0.247)
+per-seed forecasts that produced Table 1's FFNN rows (Full R^2 0.281 / 0.239)
 are published at
 https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts
 (gated; the dataset page presents its licence terms). This script regenerates them from
 the shipped configs + seeds.
 
-Run from a directory whose `data/processed` is a canonical ProForma-20Q build
+Run from a directory whose `data/processed` (the configs' `data.processed_dir`)
+is a canonical ProForma-20Q build
 (`proforma20q build` against the frozen canonical regularization stats), or pass
 `--configs-dir`/paths accordingly.
 
@@ -44,7 +45,8 @@ Run from a directory whose `data/processed` is a canonical ProForma-20Q build
 Combine the 5 per-seed forecasts into the mixture (Panel C uses the exact
 mixture; Panel A uses the materialized mean-of-means) with:
 
-    python scripts/group_seed_forecasts.py --materialize --arm ffnn_<variant>_b50 ...
+    python scripts/materialize_seed_mixture.py --src <per-seed dir> --dest <out dir> \\
+        --arm "ffnn_<variant>_b50__pf_full__*__test__predictions.parquet" --expect-seeds 5
 """
 from __future__ import annotations
 
@@ -66,9 +68,9 @@ def main() -> int:
     args = ap.parse_args()
 
     print("NOTE: the FFNN `epochs` in each seed config is the value selected by the "
-          "CV run (configs/r13_ffnn_betanll_cv.yaml); a GPU is recommended.")
+          "CV run (configs/r14_ffnn_betanll_cv.yaml); a GPU is recommended.")
     for seed in SEEDS:
-        cfg = args.configs_dir / f"r13_ffnn_{args.variant}_betanll_seed{seed}.yaml"
+        cfg = args.configs_dir / f"r14_ffnn_{args.variant}_betanll_seed{seed}.yaml"
         if not cfg.exists():
             sys.exit(f"ERROR: config not found: {cfg}")
         cmd = [sys.executable, "-m", "forma.train", "--config", str(cfg),

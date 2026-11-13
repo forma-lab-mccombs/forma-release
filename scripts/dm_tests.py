@@ -56,7 +56,7 @@ gaps (a quarter with no common cells at that horizon) are treated as
 consecutive for the NW kernel — flagged in the output when it occurs.
 
 Usage (pool dirs follow evaluate.py's --exp_dir convention):
-  python scripts/dm_tests.py --exp_dir <forecasts>/r13_point_pool
+  python scripts/dm_tests.py --exp_dir <forecasts>/point_pool
   python scripts/dm_tests.py --exp_dir <forecasts>/llm_panelC --reference forma_fgrid__pf_full
 
 Output: <exp_dir>/metrics/<feature_set>/<split>/dm/dm_vs_<reference>.csv
@@ -78,6 +78,10 @@ from forma.scoring.evaluate import (  # noqa: E402
     discover_forecast_files,
     discover_feature_sets,
     resolve_ground_truth_path,
+    add_dataset_tag_argument,
+    add_processed_dir_argument,
+    resolve_eval_dataset_tag,
+    resolve_eval_processed_dir,
 )
 from forma.scoring.eval_cache import (  # noqa: E402
     TruthGrid,
@@ -268,27 +272,22 @@ def main() -> None:
     ap.add_argument('--cache-dir', default=None,
                     help="override cache root (default <forecasts dir>/eval_cache — "
                          "shared with evaluate.py)")
+    add_dataset_tag_argument(ap)
+    add_processed_dir_argument(ap)
     args = ap.parse_args()
 
     exp_dir = Path(args.exp_dir)
     forecasts_dir = exp_dir / 'forecasts'
-    processed_dir = Path('data/processed')
+    processed_dir = resolve_eval_processed_dir(exp_dir, args.processed_dir)
 
-    dataset_tag = None
-    cfg_path = exp_dir / 'config.yaml'
-    if cfg_path.exists():
-        import yaml
-        with open(cfg_path, 'r', encoding='utf-8-sig') as f:
-            run_cfg = yaml.safe_load(f) or {}
-        dataset_tag = (run_cfg.get('data') or {}).get('dataset_tag')
-        if dataset_tag:
-            print(f"Using dataset_tag='{dataset_tag}' from pool config.")
+    dataset_tag = resolve_eval_dataset_tag(exp_dir, args.dataset_tag)
 
     splits = [s.strip() for s in args.splits.split(',') if s.strip()]
     feature_sets = discover_feature_sets(forecasts_dir, args.feature_set, splits)
     if not feature_sets:
         raise SystemExit(f"no forecasts discovered under {forecasts_dir}")
 
+    n_scored = 0
     for fs in feature_sets:
         for split_name in splits:
             forecast_files = discover_forecast_files(forecasts_dir, feature_set=fs,
@@ -312,6 +311,13 @@ def main() -> None:
             print(f"\n=== DM [{fs}/{split_name}] reference={reference} ===")
             run_split(forecast_files, truth_path, reference, out_dir, split_name,
                       cache_root=args.cache_dir)
+            n_scored += 1
+
+    if n_scored == 0:
+        print(f"\nNo (feature_set, split) was scored: every split lacked forecasts or "
+              f"ground truth (processed_dir={processed_dir}, dataset_tag={dataset_tag!r}). "
+              f"Exiting non-zero so pipeline callers do not read success.")
+        sys.exit(1)
 
 
 if __name__ == '__main__':

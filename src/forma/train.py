@@ -75,6 +75,7 @@ import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
 from forma.data.tabular_data import TabularDataModule, NaiveDriftDataModule
 from forma.data.forma_data import FormaDataModule
+from forma.data.config_utils import resolve_id_map_path
 from forma.data.transforms import de_regularize, regularize, get_derivative_s
 
 
@@ -236,8 +237,7 @@ def create_model(model_config: Dict[str, Any], data_config: Dict[str, Any] = Non
     if model_type == 'forma':
         # Determine num_account_types derived from data
         if data_config:
-            processed_dir = Path(data_config.get('processed_dir', 'data/processed'))
-            account_map_path = processed_dir / 'account_id_map.csv'
+            account_map_path = resolve_id_map_path(data_config, 'account')
             if account_map_path.exists():
                 try:
                     df_acc = pd.read_csv(account_map_path)
@@ -256,7 +256,7 @@ def create_model(model_config: Dict[str, Any], data_config: Dict[str, Any] = Non
 
         # Auto-detect num_industries from industry_id_map.csv (only if industry is active)
         if model_params.get('industry_mode', 'none') != 'none' and 'num_industries' not in model_params:
-            industry_map_path = Path(data_config.get('industry_id_map_path', 'data/processed/industry_id_map.csv'))
+            industry_map_path = resolve_id_map_path(data_config, 'industry')
             if industry_map_path.exists():
                 try:
                     df_ind = pd.read_csv(industry_map_path)
@@ -329,6 +329,17 @@ def create_model(model_config: Dict[str, Any], data_config: Dict[str, Any] = Non
         raise ValueError(f"Unknown model type: {model_type}")
 
 
+def check_ffnn_epochs(model_name: str, model_type: str, model) -> None:
+    """Refuse an FFNN whose `epochs` is < 1 (e.g. the -1 "set me from the CV run"
+    sentinel the R14 benchmark configs carry). FeedForwardModel itself would
+    silently train zero epochs and predict from untrained weights."""
+    if model_type == 'ffnn' and getattr(model, 'epochs', 1) < 1:
+        raise ValueError(
+            f"Model '{model_name}': epochs={model.epochs} is not a valid "
+            f"training length. Set it from the matching *_cv run's best-val "
+            f"epoch before running this benchmark.")
+
+
 def create_data_module(model_type: str, data_config: Dict[str, Any]):
     """
     Create appropriate data module based on model type.
@@ -349,8 +360,8 @@ def create_data_module(model_type: str, data_config: Dict[str, Any]):
     if model_type == 'forma':
         # Prepare paths
         data_dir_path = Path(data_dir)
-        account_map_path = data_dir_path / 'account_id_map.csv'
-        firm_id_map_path = data_dir_path / 'firm_id_map.csv'
+        account_map_path = resolve_id_map_path(data_config, 'account', processed_dir=data_dir_path)
+        firm_id_map_path = resolve_id_map_path(data_config, 'firm', processed_dir=data_dir_path)
 
         # Ensure data_config has what FormaDataModule expects
         if 'feature_set' not in data_config:
@@ -750,15 +761,36 @@ def _density_meta(model) -> dict | None:
 
 def _write_nll_sidecar(model, forecast_path: Path) -> None:
     """Write `{stem}.nll.json` next to a forecast so evaluate.py scores the right
-    density. No-op for gaussian/mse (the eval default) — keeps their outputs
-    unchanged."""
+    density. For gaussian/mse (the eval default) nothing is written -- but a sidecar
+    left at this path by an earlier non-Gaussian run is removed, or evaluate.py would
+    score this Gaussian forecast with that run's density."""
+    side = Path(forecast_path).with_name(f"{Path(forecast_path).stem}.nll.json")
     meta = _density_meta(model)
     if meta is None:
+        if side.exists():
+            side.unlink()
+            print(f"  Removed stale NLL density sidecar {side.name} (this forecast is gaussian)")
         return
-    side = Path(forecast_path).with_name(f"{Path(forecast_path).stem}.nll.json")
     with open(side, 'w', encoding='utf-8') as fh:
         json.dump(meta, fh)
     print(f"  NLL density sidecar written: {side.name} ({meta['family']})")
+
+
+def load_lightning_checkpoint(model, checkpoint_path):
+    """Reload a Lightning model from a checkpoint, keeping its forecast identity.
+
+    ``load_from_checkpoint`` builds a NEW instance from the saved hparams, and
+    ``model_name`` is not an hparam: create_model and the config's
+    ``forecast_name`` override set it on the instance. Without carrying it over,
+    every predict-only (``--checkpoint``) Forma run named its forecast ``forma``
+    (generate_predictions' default), so the Gaussian and Laplace arms collided
+    and dropped out of their seed-mixture families (R13 renamed them by hand).
+    """
+    name = getattr(model, 'model_name', None)
+    loaded = model.__class__.load_from_checkpoint(str(checkpoint_path))
+    if name is not None:
+        loaded.model_name = name
+    return loaded
 
 
 def _forecast_filename(model_name: str, feature_set: str, split_name: str,
@@ -970,6 +1002,15 @@ def generate_predictions(model: BaseModel, data_module, config: Dict[str, Any], 
         print(f"  Predictions saved to {save_path}")
         if latest_path is not None:
             print(f"  Latest copy saved to {latest_path}")
+        # The density sidecar. This streaming path is the only forecast writer in use
+        # (_save_forecasts, the old in-memory path that also calls _write_nll_sidecar,
+        # has no caller), and it wrote none, so a Laplace/Student-t
+        # Forma forecast was scored as Gaussian by evaluate.py unless a sidecar was
+        # staged by hand (R13's lap05 seeds were). For gaussian/mse this writes
+        # nothing and removes a stale one (_write_nll_sidecar).
+        _write_nll_sidecar(model, save_path)
+        if latest_path is not None:
+            _write_nll_sidecar(model, latest_path)
 
     # Lightning models (Forma): generate per split using the appropriate dataloader
     if isinstance(model, L.LightningModule):
@@ -1163,7 +1204,13 @@ def generate_predictions(model: BaseModel, data_module, config: Dict[str, Any], 
                     rec_all = np.concatenate(rec_pred_chunks)
                     rec_pred_chunks = None
 
-                firm_map_path = Path(config.get('data', {}).get('firm_id_map_path', 'data/processed/firm_id_map.csv'))
+                # Decode with the maps the data module itself loaded (create_data_module
+                # resolves them with resolve_id_map_path; scripts/predict_forma.py pins
+                # the checkpoint-coupled shipped maps on the module directly), falling
+                # back to the config's build.
+                dm_firm_map = getattr(data_module, 'firm_id_map_path', None)
+                firm_map_path = (Path(dm_firm_map) if dm_firm_map
+                                 else resolve_id_map_path(config.get('data', {}), 'firm'))
                 if firm_map_path.exists():
                     firm_map = pd.read_csv(firm_map_path)
                     int_to_firm = dict(zip(firm_map['firm_id_int'], firm_map['firm_id']))
@@ -1171,7 +1218,12 @@ def generate_predictions(model: BaseModel, data_module, config: Dict[str, Any], 
                     print(f"Warning: firm_id_map not found at {firm_map_path}, using raw integer as zero-padded string")
                     int_to_firm = None
 
-                account_map_path = Path(config.get('data', {}).get('account_map_path', 'data/processed/account_id_map.csv'))
+                # Previously the config key 'account_map_path' with a hard-coded
+                # data/processed default, regardless of processed_dir. Now the data
+                # module's own map (see the firm map above), else the resolver.
+                dm_account_map = getattr(data_module, 'account_map_path', None)
+                account_map_path = (Path(dm_account_map) if dm_account_map
+                                    else resolve_id_map_path(config.get('data', {}), 'account'))
                 if account_map_path.exists():
                     account_map = pd.read_csv(account_map_path)
                     id_to_name = dict(zip(account_map['account_id'], account_map['account_name']))
@@ -1431,14 +1483,7 @@ def main():
                 model.model_name = str(forecast_name)
             elif model_config['type'] == 'ffnn':
                 model.model_name = model_name
-            if model_config['type'] == 'ffnn':
-                # Fail fast on an un-set benchmark epoch sentinel (-1) rather than
-                # silently training zero epochs on untrained weights.
-                if getattr(model, 'epochs', 1) < 1:
-                    raise ValueError(
-                        f"Model '{model_name}': epochs={model.epochs} is not a valid "
-                        f"training length. Set it from the matching *_cv run's best-val "
-                        f"epoch before running this benchmark.")
+            check_ffnn_epochs(model_name, model_config['type'], model)
 
             # Create data module
             data_module = create_data_module(model_config['type'], config.get('data', {}))
@@ -1452,7 +1497,7 @@ def main():
                 if isinstance(model, L.LightningModule):
                     # Load PyTorch Lightning checkpoint
                     print(f"Loading checkpoint from {checkpoint_path}...")
-                    model = model.__class__.load_from_checkpoint(str(checkpoint_path))
+                    model = load_lightning_checkpoint(model, checkpoint_path)
                     print(f"Checkpoint loaded successfully.")
                 else:
                     # For sklearn/XGBoost models, load from saved path

@@ -306,6 +306,87 @@ def dataset_suffix(feature_set: str, dataset_tag: Optional[str] = None) -> str:
     return feature_set
 
 
+DEFAULT_PROCESSED_DIR = "data/processed"
+
+ID_MAP_FILENAMES = {
+    "firm": "firm_id_map.csv",
+    "account": "account_id_map.csv",
+    "industry": "industry_id_map.csv",
+}
+
+
+def resolve_id_map_path(
+    data_config: Optional[Dict], which: str, processed_dir: Optional[Path] = None
+) -> Path:
+    """Single source of truth for the firm/account/industry id-map paths.
+
+    ``data.{which}_id_map_path`` if set, else ``<processed_dir>/{which}_id_map.csv``
+    (``processed_dir`` defaults to ``data.processed_dir``, then
+    ``data/processed``). The id maps are append-only registries that
+    make_dataset extends and the tuples' integer ids index into, so they
+    belong to the build in ``processed_dir``. An explicit path whose parent
+    directory is not ``processed_dir`` itself raises -- including a file in a
+    *subdirectory* of ``processed_dir``: a build in e.g. ``data/processed_r14/``
+    must never read or write ``data/processed/``'s maps because a config
+    copied from an older round still names them. The directories are compared
+    after resolving, but the map file itself is not resolved, so a map inside
+    ``processed_dir`` that is a symlink into another store is accepted.
+    """
+    if which not in ID_MAP_FILENAMES:
+        raise ValueError(f"unknown id map {which!r}; expected one of {sorted(ID_MAP_FILENAMES)}")
+    data_config = data_config or {}
+    if processed_dir is None:
+        processed_dir = data_config.get("processed_dir", DEFAULT_PROCESSED_DIR)
+    processed_dir = Path(processed_dir)
+    key = f"{which}_id_map_path"
+    explicit = data_config.get(key)
+    if not explicit:
+        return processed_dir / ID_MAP_FILENAMES[which]
+    path = Path(explicit)
+    if path.parent.resolve() != processed_dir.resolve():
+        raise ValueError(
+            f"data.{key}={str(explicit)!r} is not inside data.processed_dir="
+            f"{str(processed_dir)!r}. The id maps belong to the build in processed_dir; "
+            f"reading/writing another directory's maps mixes builds. Point {key} into "
+            f"processed_dir or drop it (it defaults to "
+            f"<processed_dir>/{ID_MAP_FILENAMES[which]})."
+        )
+    return path
+
+
+class UntaggedDatasetFallbackError(FileNotFoundError):
+    """A tagged processed file is missing but a different build is on disk.
+
+    Raised when ``dataset_tag`` is configured, the tagged file does not exist,
+    and an untagged (legacy-named) file for the same kind/feature_set does.
+    The untagged file is a *different build* -- different split years,
+    regularization chains or kurtosis target -- so silently substituting it
+    trains/scores on the wrong data (issue #236). Subclasses
+    FileNotFoundError because the file the config asked for is missing.
+    """
+
+
+class UnspecifiedDatasetTagError(UntaggedDatasetFallbackError):
+    """No dataset_tag was given, but tagged builds of the file exist.
+
+    Eval-side guard: an eval pool assembled without a ``config.yaml`` (or
+    whose config lacks ``data.dataset_tag``) would otherwise score against
+    the untagged truth by default while the intended tagged truth sits next
+    to it. Pass the tag explicitly, or ``--dataset_tag=`` (equals sign, empty
+    value) to choose the untagged build on purpose.
+    """
+
+
+def tagged_siblings(
+    data_dir: Path, kind: str, feature_set: str, ext: str = "parquet"
+) -> List[Path]:
+    """Tagged builds ``{kind}__{feature_set}__*.{ext}`` present in ``data_dir``."""
+    data_dir = Path(data_dir)
+    if not data_dir.is_dir():
+        return []
+    return sorted(data_dir.glob(f"{kind}__{feature_set}__*.{ext}"))
+
+
 def resolve_dataset_path(
     data_dir: Path,
     kind: str,
@@ -315,14 +396,36 @@ def resolve_dataset_path(
 ) -> Path:
     """Find a processed-data file for (kind, feature_set, dataset_tag).
 
-    Falls back to the legacy untagged path if the tagged file doesn't exist,
-    so old datasets keep working without a rebuild.
+    - No ``dataset_tag``: the legacy untagged path
+      ``{kind}__{feature_set}.{ext}`` (existence is the caller's check).
+    - ``dataset_tag`` set and the tagged file exists: the tagged path.
+    - ``dataset_tag`` set, tagged file missing, untagged file present:
+      raises :class:`UntaggedDatasetFallbackError`. There is deliberately NO
+      silent fallback -- the untagged file is another build, and quietly
+      using it is how a replica scored against the wrong truth in #236.
+    - ``dataset_tag`` set and neither exists: the (missing) tagged path, so
+      the caller's own missing-file handling reports the name it expected.
+
+    To use an untagged build on purpose, leave ``dataset_tag`` unset.
     """
-    if dataset_tag:
-        tagged = data_dir / f"{kind}__{feature_set}__{dataset_tag}.{ext}"
-        if tagged.exists():
-            return tagged
-    return data_dir / f"{kind}__{feature_set}.{ext}"
+    data_dir = Path(data_dir)
+    untagged = data_dir / f"{kind}__{feature_set}.{ext}"
+    if not dataset_tag:
+        return untagged
+    tagged = data_dir / f"{kind}__{feature_set}__{dataset_tag}.{ext}"
+    if tagged.exists():
+        return tagged
+    if untagged.exists():
+        raise UntaggedDatasetFallbackError(
+            f"dataset_tag={dataset_tag!r} is set but the tagged file is missing:\n"
+            f"  expected: {tagged}\n"
+            f"An untagged file exists at {untagged}, but it is a DIFFERENT build "
+            f"and will not be used as a substitute (no silent tagged->untagged "
+            f"fallback; see issue #236). Ship/copy the tagged file into "
+            f"{data_dir}, or -- only if you really mean the untagged legacy build "
+            f"-- unset data.dataset_tag."
+        )
+    return tagged
 
 
 def parse_cfg_list(lst) -> List[str]:

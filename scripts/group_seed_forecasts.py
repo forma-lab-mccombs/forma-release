@@ -62,7 +62,7 @@ one per seed or one glob that catches them all.
 
     python scripts/group_seed_forecasts.py \
         --src  <forecasts>/all \
-        --dest <forecasts>/r13_mixture_pool/forecasts \
+        --dest <forecasts>/mixture_pool/forecasts \
         --arm forma_gauss_clamp "forma-r11_fp32_r10e8*__pf_full__test__predictions.parquet" \
         --arm forma_laplace     "forma-r11e4?_laplace_fp32_*__pf_full__test__predictions.parquet" \
         --apply

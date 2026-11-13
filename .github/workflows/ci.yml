@@ -62,5 +62,5 @@ jobs:
           python-version: "3.12"
       - name: Install forma-release with the LLM extra
         run: pip install -e ".[llm,dev]"
-      - name: LLM harness loads + parses (no network)
-        run: python -m pytest tests/test_llm_harness.py -q
+      - name: LLM harness + re-normalization (no network, no data)
+        run: python -m pytest tests/test_llm_harness.py tests/test_llm_renormalize.py -q

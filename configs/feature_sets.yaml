@@ -413,7 +413,7 @@ feature_sets:
   # GLM feature set - the Geertsema, Lu, Ma (2026) chain-target set.
   # Naming convention (repo-wide): "GLM" (the authors' initials) names the
   # paper/dataset side -- this feature set, the 28-item chain-target set,
-  # configs/glm.yaml, and the benchmark. "GBM" names the *model* only (the
+  # configs/r14_glm.yaml, and the benchmark. "GBM" names the *model* only (the
   # chained gradient-boosting estimator, ChainedGBMModel / model_type
   # chained_gbm). A feature set / dataset is never "GBM"; the model is never "GLM".
   # 28 of 29 core items (only iva dropped - genuinely unavailable in quarterly Compustat;
@@ -464,7 +464,7 @@ feature_sets:
   # Purpose: let the chained GBM model (or any model) consume the FULL
   # pf_full feature matrix as *inputs* while restricting *targets* to the GLM
   # 28-item sequential chain (set targets.all:false + targets.variables to the
-  # 28 chain items; see configs/glm.yaml). The union is resolved via include_sets,
+  # 28 chain items; see configs/r14_glm.yaml). The union is resolved via include_sets,
   # so get_feature_columns / collect_computed_columns pull every base AND computed
   # column from both sets (recursion handled in config_utils / feature_engineering).
   #

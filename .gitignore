@@ -63,3 +63,6 @@ env/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# `hf download --local-dir .` writes its resume metadata here.
+.cache/

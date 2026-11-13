@@ -32,6 +32,15 @@ puts the repo root on the path so tests can import ``scripts.mixture_calibration
 import sys
 from pathlib import Path
 
+# Load pyarrow before any test pulls in torch. On Windows, pyarrow first loaded
+# after torch/lightning can crash the interpreter inside pa.Table.from_pandas
+# (access violation / heap corruption 0xc0000374) when a later test streams a
+# forecast parquet -- a native-library load-order conflict, not a code defect.
+try:
+    import pyarrow  # noqa: F401
+except ImportError:  # pragma: no cover - pyarrow is a core dependency
+    pass
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 for p in (_REPO_ROOT, _REPO_ROOT / "src"):
     if str(p) not in sys.path:

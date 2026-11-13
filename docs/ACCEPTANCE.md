@@ -1,129 +1,106 @@
 # Canonical acceptance record
 
-Verification that the artifacts in this repository reproduce the paper's
-published numbers. Run 2026-07-24/25 against the canonical build
-(`r13_node_optionD_indfe_val8`) and the canonical forecast store.
+Verification that the artifacts this repository points at reproduce the paper's
+published camera-ready (R14) numbers. Run 2026-11-13 against the canonical
+build (`r14_node_optionD_indfe_val8`) and the canonical forecast store, with the
+code of this repository at the commit that adds this record.
 
-Scored companion: **`proforma-20q` @ `4f5a1df`**. Pin this commit when
+Scored companion: **`proforma-20q` R14 release** (branch `r14-camera-ready`; its merge commit is pinned here once that PR lands). Pin this commit when
 reproducing — scores are only comparable against a fixed evaluator version.
 
-**Summary: PASS.** Both scored panels reproduce the published values, Panel A to
-full float precision. Every result below is on the published common sample of
-**327,244,429** cells.
+**Summary: every number checked reproduces exactly.** The Hub checkpoints are byte-identical to the fleet's output. Panel A (Forma, both FFNNs) and Panel C (Laplace and Gaussian mixture NLL, CRPS, coverage) reproduce the research pipeline as exact doubles. The two evaluators agree bit for bit on Forma's R² and MAE. Every result below is on the published common sample
+of **379,859,933** cells.
+
+> **Superseded record.** The pre-camera-ready (R13) acceptance record — build
+> `r13_node_optionD_indfe_val8`, 327,244,429 cells, Forma R² 0.289 — is at the
+> `r13` tag of this repository. Its numbers are not comparable with the ones
+> below: the R14 build re-fit the asinh scale k and grew the sample, so the
+> two rounds score in different normalized spaces.
 
 ---
 
 ## 1. Checkpoint integrity
 
-> **Note (post-release).** This section records the acceptance run performed when
-> the checkpoints were distributed inside this repository. They no longer are:
-> the weights are published on the Hugging Face Hub at
-> [`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma)
-> under separate licence terms. The Hub copies **retain** the `callbacks` blob
-> described below rather than having it stripped, so their file digests differ
-> from the copies this section was run against; their tensors were re-verified as
-> bit-identical (62/62 per checkpoint, all ten) and they load through
-> `FormaModel.load_from_checkpoint` at 942,275 entries. The findings below stand
-> as recorded.
+The ten checkpoints on the Hugging Face Hub
+([`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma),
+`checkpoints/`) are the training fleet's own output files, uploaded
+unmodified. Nothing was re-serialized, so integrity is a byte comparison rather
+than the tensor-by-tensor comparison the R13 record needed.
 
-The ten formerly shipped checkpoints were exported from the originals by stripping the
-Lightning `callbacks` blob (which carried a relative `results/<expdir>/…` path).
-Re-serialization is a corruption risk, so it was checked directly rather than
-inferred: for each checkpoint, every `state_dict` tensor was compared against
-its original.
+Hub revisions at the time of this record: `forma` @ `8ee90ffb`,
+`proforma-20q-artifacts` @ `f9e93e84`, `forma-usd-forecasts` @ `fdf22404`. The
+R13 files are at the `r13` tag of each repo.
 
-| check | tree it was run against | result |
-|---|---|---|
-| tensors compared | working copy vs. originals | 62 / 62 per checkpoint, all 10 checkpoints |
-| `torch.equal` on every tensor | working copy vs. originals | **True — bit-identical to the originals** |
-| parameters per checkpoint | working copy | 942,275 (942,210 trainable + 65 buffer elements) |
-| reload under the shipped code | **fresh `git clone` @ `bdc240c`** | `FormaModel.load_from_checkpoint` — 62 tensors, 942,275 params, 0 missing / 0 unexpected keys |
+| File on the Hub | md5 (Hub download = fleet output) |
+|---|---|
+| `checkpoints/forma_gaussian_seed60.ckpt` | `3a94aee01b5fbe6f5fe41d183edb667a` |
+| `checkpoints/forma_gaussian_seed61.ckpt` | `3771bb7b4249b57ca53c0c4de24130a4` |
+| `checkpoints/forma_gaussian_seed62.ckpt` | `67a8f3e6d66ef09f852d5d95b3807caa` |
+| `checkpoints/forma_gaussian_seed63.ckpt` | `670c21a29af45b675273c5285f80293a` |
+| `checkpoints/forma_gaussian_seed64.ckpt` | `fd2ab845ee0217a13e9bb257e0b64dae` |
+| `checkpoints/forma_laplace_seed60.ckpt` | `41b02696cb146adc7a3c48c71d7c1f26` |
+| `checkpoints/forma_laplace_seed61.ckpt` | `397f706e49f64cc1e2e34fb164133c4e` |
+| `checkpoints/forma_laplace_seed62.ckpt` | `90b6bc62b82a1aecbda5265e8f775a27` |
+| `checkpoints/forma_laplace_seed63.ckpt` | `d221086d1ed5bc7e3e09694ad30f37fe` |
+| `checkpoints/forma_laplace_seed64.ckpt` | `ae985ed69539df64cb00d754de0ab1d6` |
+| `reference/regularization_stats.parquet` | `aa853a6a433ffe9d0de74180775507ea` |
+| `reference/account_id_map.csv` | `bd0e2ba84544e65a95370d0c44df4c0e` |
 
-The shipped weights **are** the weights that produced the paper's numbers; the
-strip changed only the metadata blob.
-
-> **Correction (2026-07-26).** As first published, the reload row said "under the
-> shipped code" but had only ever been run against the authors' working copy. It
-> was false of the release: `.gitignore` was silently excluding `src/forma/data/`,
-> so a clone could not import `FormaModel` at all, and every command in the
-> reproduction map failed on `ModuleNotFoundError: No module named 'forma.data'`.
-> A cold third-party replication attempt found it. The subpackage now ships
-> (`bdc240c`), CI checks the import on every push from a fresh checkout, and the
-> row above has been re-run against a clone rather than a working tree.
->
-> The general lesson is recorded here deliberately: **every other claim in this
-> document was verified against the authors' working copy too.** The numbers
-> were checked carefully; the *artifact* was not. Where a row's tree is not
-> stated, assume working copy — and treat the CI job, which runs from a clean
-> checkout, as the authority on what the release can actually do.
+Each Hub file was downloaded back after the upload, and its md5 matches the
+fleet's own `models/*.ckpt` for that seed. The two `reference/` files match the
+build's `regularization_stats__pf_full__r14_node_optionD_indfe_val8.parquet`
+and `account_id_map.csv`. All ten checkpoints load through
+`forma.models.forma.FormaModel.load_from_checkpoint` with this repository's
+code: strict state-dict match, 942,210 parameters, epoch 12. They were written
+by Lightning 2.6.6 and load under 2.5.2.
 
 ## 2. Table 1 Panel A — Full column (Gaussian, 5-seed mixture)
 
-Artifact: canonical `forma_fgrid` run-2 mixture (`r13_forma_fgrid_mix5_run2`,
-commit `fe38fca`), scored against `tabular_test__pf_full__r13_node_optionD_indfe_val8`
-with the Full-sample mask.
+Scored with this repository's `forma.scoring.evaluate` over the three released
+point-track forecasts (`forma_fgrid` mixture, `ffnn_linear_b50`,
+`ffnn_large_b50`), common-sample mode. The intersection is the published
+Full sample: **379,859,933** cells over 78 targets (the FFNNs alone cover
+388,885,185).
 
-| metric | reproduced | published | match |
+| Model | R² (released code) | MAE (released code) | Paper R² |
 |---|---|---|---|
-| **R²** | **0.28917237380438254** | 0.28917237380438254 | exact (17 s.f.) |
-| **MAE** | **0.4084936810118555** | 0.4084936810118555 | exact |
-| z² | 0.9610393201296477 | 0.961 | ✓ |
-| CRPS (moment-matched) | 0.3194120370653803 | — | — |
-| NLL (moment-matched) | 0.7199038724557704 | 0.720 | ✓ |
-| common sample | 327,244,429 | 327,244,429 | ✓ |
+| Forma (Gaussian, 5-seed) | 0.3148849598260647 | 0.4076683056514988 | 0.315 |
+| FFNN-linear | 0.2807965194562326 | 0.4443536530908115 | 0.281 |
+| FFNN-large | 0.2387551679167482 | 0.4804706454238374 | 0.239 |
 
-Paper Panel A headline **Forma 0.289** ✓.
-
-### FFNN rows, scored in the same pool
-
-The Full column is an **intersection across models**, and `forma_fgrid` is its
-binding constraint — so the FFNN rows only reproduce when scored in a pool that
-contains Forma. Pooling the two FFNN 5-seed mixtures (`r13_ffnn_{linear,large}_betanll_mix5`,
-commit `194b67c`) with the Forma mixture:
-
-| model | R² | published | MAE | published |
-|---|---|---|---|---|
-| `forma_fgrid` | 0.28917237380438254 | 0.289 | 0.4084936810118555 | 0.408 |
-| **`ffnn_linear_b50`** | **0.2528736009805014** | 0.253 | **0.44228160832978064** | 0.4423 |
-| **`ffnn_large_b50`** | **0.24705595722332863** | 0.247 | **0.4523003669712947** | 0.4523 |
-
-All three report `n_complete_rows = 327,244,429`, and Forma's R² is **bit-identical**
-to its single-model run above — an empirical confirmation of the coverage claim
-that every other full-coverage model is a superset of Forma's footprint, so
-adding models leaves the intersection (and every published number) unmoved.
+All three match the research pipeline's `results/icaif26_panels` CSVs as
+exact doubles. The Forma row's density scores from the same pass: NLL
+0.7473453745967469, CRPS 0.316342853258982, z̄² 1.0917551182434817. The
+NLL here is the moment-matched single Gaussian. The exact mixture NLL
+(0.6752897045825152) is the one in §3.
 
 ## 3. Table 1 Panel C — density track (Laplace, exact 5-seed mixture)
 
-Artifact: the five `forma_lap05_fgrid` per-seed forecasts (commit `25b3c16`)
-with their `.nll.json` sidecars, each covering 327,244,429 rows. Family
-dispatch resolved to `laplace` from the sidecars on all five seeds.
+Ten per-seed forecasts (`forma_fgrid` and `forma_lap05_fgrid`, seeds 60–64)
+with their `.nll.json` sidecars, scored from cold caches with the commands in
+§4.
 
-| metric | reproduced | paper | match |
-|---|---|---|---|
-| **exact mixture NLL** | **0.1599192500934292** | 0.160 | ✓ |
-| **mixture CRPS** | **0.292664** | 0.293 | ✓ |
-| Cov50 | 0.637479 | 0.637 | ✓ |
-| Cov90 | 0.916450 | 0.916 | ✓ |
-| Cov80 / Cov95 | 0.853008 / 0.947197 | — | — |
-| mean PIT | 0.493918 | — | — |
-| common sample | 327,244,429 | 327,244,429 | ✓ |
+| Quantity | Released code | Paper |
+|---|---|---|
+| Laplace mixture NLL | 0.2105174125098221 | 0.211 |
+| Laplace mixture CRPS | 0.29522935224139835 | 0.295 |
+| Coverage 50 / 80 / 90 / 95% | 0.6415 / 0.8539 / 0.9169 / 0.9476 | — |
+| Mean PIT | 0.5169 | — |
+| Gaussian mixture NLL (for reference) | 0.6752897045825152 | 0.675 |
+| n | 379,859,933 | 379,859,933 |
 
-`z2_mixture = 6.760418` is emitted by the same pass but is **not** a
-paper-displayed value for the Laplace row (Panel C reports NLL / CRPS / Cov50 /
-Cov90), so there is nothing to compare it against.
-
-Both Panel C numbers come from code shipped in this repository: the mixture NLL
-from `forma.scoring.evaluate`'s seed-mixture track, and the CRPS/coverage from
-`scripts/mixture_calibration.py`. The canonical-run outputs of both passes —
-including the per-horizon coverage series the paper references — are committed
-under [`results_panels/full_sample_likelihood/`](../results_panels/README.md),
-so these tables can be checked without rerunning anything.
+`coverage_by_horizon.csv` and `pit_hist_by_horizon.csv` from this run are
+**byte-identical** to the committed
+`results_panels/full_sample_likelihood/forma_lap05_fgrid_calibration/` files.
+The Forma columns of `mixture_nll__global.csv` and `mixture_nll__by_horizon.csv`
+are equal value for value to the committed ones. (The committed files also
+carry the two FFNN mixture columns, which this pass did not include.)
 
 ## 4. Reproduction commands
 
 Panel C, end to end from the per-seed forecasts (pool = a directory with
 `forecasts/*.parquet` + each `.nll.json` sidecar + a `config.yaml` carrying
-`data.dataset_tag`):
+`data.dataset_tag` and `data.processed_dir`):
 
 ```bash
 # exact 5-seed mixture NLL (also builds the per-forecast error caches)
@@ -145,16 +122,6 @@ proforma20q evaluate <mixture>.parquet --truth <tabular_test>.parquet \
     --sample-mask <full_sample_mask_bits>.npy
 ```
 
-This works at full scale: `proforma20q evaluate` streams submissions by
-row-group (an earlier whole-file-in-memory OOM,
-[proforma-20q#12](https://github.com/forma-lab-mccombs/proforma-20q/issues/12), is
-fixed and closed) and has been confirmed against the canonical Forma forecast —
-472,695,966 rows, the model's actual coverage rather than the 550,620,720-row
-full grid — reproducing R² 0.289172 / MAE 0.408494 on the 327,244,429-cell
-Full sample. The Panel A numbers in this document were originally produced
-with the streaming evaluator (`forma.scoring.evaluate`); the two
-implementations agree (see §6).
-
 ## 5. Practical notes on scoring a full-scale submission
 
 Either evaluator handles full scale on ordinary hardware: `proforma20q
@@ -162,46 +129,54 @@ evaluate` validates and scores by row-group, and `forma.scoring.evaluate`
 streams through on-disk caches. `proforma20q evaluate` is the authoritative
 one for Panel A.
 
-Unrelated but worth knowing: a forecast parquet written **without pandas
-categorical metadata** (e.g. by a bare `pyarrow` writer) materializes its string
-columns as `object` and roughly triples the memory needed to read it. Write
-forecasts with categorical string columns.
+A forecast parquet written **without pandas categorical metadata** (e.g. by a
+bare `pyarrow` writer, which is how `materialize_seed_mixture.py` writes the
+mixtures) materializes its string columns as `object` and roughly triples the
+memory needed to read it with pandas. The evaluators stream it by row group,
+so this matters only for your own whole-file reads.
 
 ## 6. Cross-implementation check
 
-`proforma-20q` re-implements the scoring math independently of the research
-pipeline (its `truth_grid.py`: *"Ported from the Forma research repo's
-`src/eval_cache.py`, minus the on-disk memmap machinery … the math … is
-identical"*). Scoring the **same** artifact with both implementations agrees:
+The Forma mixture parquet scored by both evaluators on the published mask:
 
-| implementation | R² | MAE | common sample |
+| Evaluator | R² | MAE | n |
 |---|---|---|---|
-| `proforma20q evaluate` | 0.287696 | 0.409168 | 327,244,429 |
-| research pipeline (published, same run) | 0.2877 | 0.4092 | 327,244,429 |
+| `forma.scoring.evaluate` (this repository) | 0.3148849598260647 | 0.4076683056514988 | 379,859,933 |
+| `proforma20q evaluate` (scored companion) | 0.31488495982606468 | 0.40766830565149881 | 379,859,933 |
 
-(Both on the superseded run-1 mixture, which is what was in the store at the
-time of that run — the agreement is the point, not the values.)
+The two are the same IEEE doubles; they differ only in how many digits each
+evaluator prints. The `naive` and `fade` reference
+rows from `proforma20q evaluate --against baselines` agree with the research
+pipeline's values to the last bit, except fade, which differs by one ulp. The column
+statistics of the released mixture match `checksums/canonical_column_stats.json`
+on all 2,497 checked columns (0 drift).
 
 ## 7. Scope — what is *not* covered here
 
 - **Chained-GBM Table-1 rows.** Not re-scored. Their weights are not shipped and
   the GBM column additionally needs the `pf_full_glm` build, which
-  `proforma20q build` does not produce. (The FFNN rows *were* verified — §2.)
-  The original forecast parquets that produced these rows are not distributed
-  either, and `scripts/regen_gbm.py` depends on that same absent build — so
-  outside the research pipeline these rows are neither distributed nor
-  regenerable.
-- **Regeneration of forecasts from the shipped checkpoints.** Inference was
-  measured at ~27.5 s/batch × 11,896 batches ≈ 91 h per seed on the CPU-only
-  machine used here (no CUDA), i.e. ~19 days for the 5-seed family — it needs
-  the GPU environment the fleet was trained on. Checkpoint integrity was
-  therefore established by the bit-identical comparison in §1, which is a
-  stronger guarantee than a sampled numeric diff.
-- **Chronos-2 and the LLM column.** The LLM sample pin *was* verified: the
-  harness regenerates the paper's exact 2,103-origin sample with fingerprint
-  `5715abbe3f9f5c3f` (noise subset `cec4a58adfcda085`).
+  `proforma20q build` does not produce. The forecast parquets that produced
+  these rows are not distributed either, and `scripts/regen_gbm.py` depends on
+  that same absent build — so outside the research pipeline these rows are
+  neither distributed nor regenerable.
+- **Random Forest.** Not re-scored. The camera-ready forests ran **unseeded**
+  (cuML 25.12 dropped `random_state` through the wrapper), so `regen_rf.py`
+  reproduces the protocol, not the published forests bit for bit.
+- **Regeneration of forecasts from the shipped checkpoints.** Not re-run here:
+  inference needs the GPU environment the fleet ran on (R13 measured ~91 h per
+  seed on a CPU-only machine). Checkpoint integrity is established by the byte
+  comparison in §1 instead.
+- **ElasticNet.** Not re-run on the R14 build (it exhausts memory with
+  `n_jobs=-1` at full scale). The paper's 0.282 is quoted from the research run.
+- **Chronos-2 and the LLM column.** Not re-scored. The camera-ready LLM column
+  is the archived R13-prompt responses re-normalized onto the R14 build
+  (`scripts/llm/llm_renormalize.py`); the responses themselves are not
+  distributed. The 2,103-origin pin is drawn on the R13 build (fingerprint
+  `5715abbe3f9f5c3f`).
 
 ## 8. Environment
 
-Windows 11, Python 3.12.4, pandas 2.2.3, numpy 2.4.2, fastparquet 2025.12.0,
-pyarrow 23.0.1, torch 2.10.0+cpu, 31.5 GB RAM, no CUDA.
+Windows 11 Enterprise (10.0.22631), Intel Core i9-14900 (32 logical CPUs),
+64 GB RAM, no GPU used. Python 3.12.4, numpy 2.3.2, pandas 2.2.3, pyarrow
+24.0.0, scipy 1.15.1, torch 2.7.1+cu126. Panel A took about 40 minutes and
+Panel C about 1 h 40 min (cold caches) on this machine.

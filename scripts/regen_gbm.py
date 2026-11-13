@@ -27,13 +27,14 @@
 
 Chained-GBM weights (per-(chain-item, horizon) LightGBM boosters) are not
 shipped; this regenerates the forecasts from the shipped configs. Two variants:
-`glm.yaml` (L1 / MAE objective, Panel B) and `glm_mse.yaml` (L2 / MSE, Panel A).
+`r14_glm.yaml` (L1 / MAE objective, Panel B) and `r14_glm_mse.yaml` (L2 / MSE,
+Panel A).
 
     python scripts/regen_gbm.py            # both variants
     python scripts/regen_gbm.py --objective l1
 
 BUILD DEPENDENCY (important): the chained GBM consumes the `pf_full_glm` feature
-set under the `r13_node_optionD_indfe_val8_regfix` dataset tag. That build is NOT
+set under the `r14_node_optionD_indfe_val8` dataset tag (in data/processed). That build is NOT
 produced by `proforma20q build` (which builds the standard `pf_full` set); it is
 part of the research data pipeline. Absent that build, this script cannot run,
 and the original GBM forecast parquets are not distributed either — so outside
@@ -48,7 +49,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-VARIANTS = {"l1": "glm.yaml", "l2": "glm_mse.yaml"}
+VARIANTS = {"l1": "r14_glm.yaml", "l2": "r14_glm_mse.yaml"}
 
 
 def main() -> int:
@@ -57,7 +58,7 @@ def main() -> int:
     ap.add_argument("--objective", choices=["l1", "l2", "both"], default="both")
     args = ap.parse_args()
 
-    print("NOTE: requires the pf_full_glm / *_regfix build (research data pipeline; "
+    print("NOTE: requires the camera-ready pf_full_glm build (research data pipeline; "
           "not produced by `proforma20q build`). See module docstring.")
     todo = ["l1", "l2"] if args.objective == "both" else [args.objective]
     for obj in todo:
