@@ -90,8 +90,8 @@ with their `.nll.json` sidecars, scored from cold caches with the commands in
 | n | 379,859,933 | 379,859,933 |
 
 `coverage_by_horizon.csv` and `pit_hist_by_horizon.csv` from this run are
-**byte-identical** to the committed
-`results_panels/full_sample_likelihood/forma_lap05_fgrid_calibration/` files.
+**identical, line for line**, to the committed
+`results_panels/full_sample_likelihood/forma_lap05_fgrid_calibration/` files (the repository stores them with LF line endings).
 The Forma columns of `mixture_nll__global.csv` and `mixture_nll__by_horizon.csv`
 are equal value for value to the committed ones. (The committed files also
 carry the two FFNN mixture columns, which this pass did not include.)
