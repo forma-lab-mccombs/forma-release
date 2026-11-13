@@ -32,7 +32,7 @@ during training and cascade during prediction.
 Naming convention (repo-wide): "GBM" refers to THIS model -- the chained
 gradient-boosting estimator (ChainedGBMModel / model_type ``chained_gbm``).
 "GLM" -- the authors' initials, Geertsema/Lu/Ma -- refers to the paper-side
-artifacts: the ``glm`` feature set and chain-target set, ``configs/glm.yaml``,
+artifacts: the ``glm`` feature set and chain-target set, ``configs/r14_glm.yaml``,
 and the benchmark itself. The model is never called "GLM"; the dataset,
 feature set, and benchmark are never called "GBM".
 """

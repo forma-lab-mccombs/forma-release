@@ -49,3 +49,13 @@ def qoff_to_period_index(qoff) -> pd.PeriodIndex:
 def qoff_to_quarter_end(qoff) -> pd.DatetimeIndex:
     """Integer quarter offsets -> end-of-quarter timestamps (forecast-file convention)."""
     return qoff_to_period_index(qoff).end_time
+
+
+def period_to_qoff(period_like) -> int:
+    """Calendar quarter -> integer quarter offset (base 1969Q4 = 0).
+
+    The inverse of :func:`qoff_to_period_index`. Accepts anything
+    ``pd.Period(..., freq='Q')`` takes, e.g. ``"2009Q4"`` or a Timestamp.
+    """
+    period = pd.Period(period_like, freq='Q')
+    return int((period.year - BASE_YEAR) * 4 + period.quarter - 4)

@@ -58,7 +58,7 @@ Pipeline exercised (data -> build -> infer -> validate):
      in-process (``proforma20q.schema.validate_forecast``) and via the shipping
      acceptance path (``python -m proforma20q.cli validate`` as a subprocess).
 
-Config is based on ``configs/r13_forma_fgrid_seed60.yaml`` (industry_mode=node,
+Config is based on ``configs/r14_forma_fgrid_seed60.yaml`` (industry_mode=node,
 use_future_grid, present_in_q0, inference.fp32, identities.json), with the tuple
 window shrunk (max_horizon/max_lookback) and num_workers=0 for CI speed.
 """
@@ -72,6 +72,7 @@ import numpy as np
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DATASET_TAG = "r14_node_optionD_indfe_val8"   # the camera-ready (R14) tag
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +138,10 @@ def _build_synth_tuple(tmp: Path):
 
     pb.build_tuple = _capturing_build_tuple
     try:
-        written = build(raw_path, out_dir=tmp, which=("tuple",), verbose=False)
+        # Pin the tag rather than rely on the companion's default (which moved
+        # from the R13 to the R14 tag with the camera-ready release).
+        written = build(raw_path, out_dir=tmp, dataset_tag=DATASET_TAG,
+                        which=("tuple",), verbose=False)
     finally:
         pb.build_tuple = orig_build_tuple
 
@@ -189,11 +193,11 @@ def test_synthetic_smoke(tmp_path):
                                     Path(written["tuple_test"]))
 
     # -- 3. Config: base on the canonical fgrid seed-60 config, override for CI ----
-    cfg = load_config(str(REPO_ROOT / "configs" / "r13_forma_fgrid_seed60.yaml"))
+    cfg = load_config(str(REPO_ROOT / "configs" / "r14_forma_fgrid_seed60.yaml"))
     d = cfg["data"]
     d["processed_dir"] = str(tmp_path)
     d["feature_set"] = "pf_full"
-    d["dataset_tag"] = "r13_node_optionD_indfe_val8"   # matches build() default suffix
+    d["dataset_tag"] = DATASET_TAG                      # the tag build() was given
     d["identities_path"] = str(REPO_ROOT / "configs" / "identities.json")
     d["account_map_path"] = str(tmp_path / "account_id_map.csv")
     d["firm_id_map_path"] = str(tmp_path / "firm_id_map.csv")

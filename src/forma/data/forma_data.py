@@ -39,7 +39,9 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Union
 from torch_geometric.data import Data, Batch
 from forma.data.transforms import regularize
-from forma.data.config_utils import resolve_dataset_path
+from forma.data.config_utils import resolve_dataset_path, resolve_id_map_path
+from forma.data.tuple_splits import union_tuple_splits
+from forma.data.quarters import period_to_qoff
 
 
 VALID_INDUSTRY_MODES = ('none', 'node', 'bias')
@@ -956,7 +958,10 @@ class FormaDataModule(L.LightningDataModule):
                 f"(got {self.tuple_max_abs_zscore}).")
 
         self.industry_mode = _validate_industry_mode(data_config.get('industry_mode', 'none'))
-        self.industry_id_map_path = data_config.get('industry_id_map_path', str(Path(data_dir_path) / 'industry_id_map.csv'))
+        # resolve_id_map_path validates an explicit path lies in processed_dir;
+        # an explicit value is kept verbatim (byte-identical to the old lookup).
+        _industry_map = resolve_id_map_path(data_config, 'industry', processed_dir=data_dir_path)
+        self.industry_id_map_path = data_config.get('industry_id_map_path') or str(_industry_map)
 
         # 2. Placeholders for state (to be filled in setup)
         self.account_id_map = None
@@ -1161,6 +1166,7 @@ class FormaDataModule(L.LightningDataModule):
             print("Loading Train/Val splits...")
             df_train = pd.read_parquet(self._split_path('tuple_train'))
             df_val = pd.read_parquet(self._split_path('tuple_val'))
+            self._warn_if_lead_in_too_short(df_val, 'val')
 
             self._update_firm_industry_lookup(df_train)
             self._update_firm_industry_lookup(df_val)
@@ -1169,7 +1175,14 @@ class FormaDataModule(L.LightningDataModule):
             no_cv = self.data_config.get('no_cv', False)
             if no_cv:
                 print("NO-CV MODE: Combining train and validation data for training...")
-                df_train = pd.concat([df_train, df_val], ignore_index=True)
+                # Dedup on the tuple key: the splits overlap by
+                # `pre_quarters_included` lead-in quarters (11 in the rN builds,
+                # sized from curriculum max_lookback -- #161), and the union must
+                # not carry a tuple twice
+                # (#279). See src/forma/data/tuple_splits.py for why it is done by key
+                # and before the concat.
+                df_train = union_tuple_splits(df_train, df_val)
+                del df_val
                 # Build only train lookup (val will be empty)
                 self.train_lookup, self.train_index, self.train_slice_cache = self._build_lookup_and_index(df_train)
                 self.val_lookup, self.val_index, self.val_slice_cache = {}, [], {}
@@ -1185,8 +1198,14 @@ class FormaDataModule(L.LightningDataModule):
         if stage == 'test':
             print("Loading Test split...")
             df_test = pd.read_parquet(self._split_path('tuple_test'))
+            self._warn_if_lead_in_too_short(df_test, 'test')
             self._update_firm_industry_lookup(df_test)
-            self.test_lookup, self.test_index, self.test_slice_cache = self._build_lookup_and_index(df_test)
+            # The lead-in rows stay in the lookup (they are the history of the
+            # first test origins); only the origin index is floored.
+            first_origin_q = self.first_test_origin_q()
+            self._check_test_floor_against_file(df_test, first_origin_q)
+            self.test_lookup, self.test_index, self.test_slice_cache = self._build_lookup_and_index(
+                df_test, first_origin_q=first_origin_q)
             self.test_global_max_q = int(df_test['quarter'].max())
 
         # 'predict' = Inference mode
@@ -1195,6 +1214,121 @@ class FormaDataModule(L.LightningDataModule):
             print("Setting up for prediction...")
             print("Prediction setup not yet implemented.")
             pass
+
+    def first_test_origin_q(self) -> Optional[int]:
+        """Integer quarter of the first test-period origin, or None if unknown.
+
+        The tuple test file starts `pre_quarters_included` quarters before the
+        test period so the boundary origin gets its full window, but those
+        lead-in quarters are history, not test origins. Without a floor,
+        `_build_lookup_and_index` would enumerate them as origins too (2008Q1
+        onward in the r13 build, on truncated windows) and every Forma forecast
+        file would carry ~8 quarters of origins no scorer uses -- evaluate.py
+        keys truth off the year-disjoint tabular test split, which starts at
+        (val_end_year + 1)Q1.
+
+        Applies to both split topologies: the firm-based splitter cuts the test
+        file at the same val_end_year boundary. With no `time_splits` in the
+        config there is no boundary to floor at (same non-guess as
+        `_warn_if_lead_in_too_short`), so origins run from the frame minimum.
+        """
+        val_end_year = (self.data_config.get('time_splits') or {}).get('val_end_year')
+        if val_end_year is None:
+            print("NOTE: no data.time_splits.val_end_year in the config; test origins "
+                  "are not floored at the test-period start and include the lead-in quarters.")
+            return None
+        return period_to_qoff(f"{int(val_end_year) + 1}Q1")
+
+    def _check_test_floor_against_file(self, df: pd.DataFrame,
+                                       first_origin_q: Optional[int]) -> bool:
+        """Note when tuple_test carries more lead-in than the floor's window needs.
+
+        The floor comes from the config's `val_end_year`, not from the file. If the
+        dataset was built with an EARLIER val_end_year than the config states, the
+        file's real test quarters sit below the floor and are silently dropped as
+        origins -- and `_warn_if_lead_in_too_short` passes, since the buffer looks
+        long, not short. A longer-than-needed buffer is also what a build made for a
+        larger `max_lookback` looks like (harmless), so this prints a note rather
+        than raising. Returns True when the lead-in is exactly what the window needs
+        (or nothing is checkable).
+        """
+        if first_origin_q is None or df.empty:
+            return True
+        have = first_origin_q - int(df['quarter'].min())
+        need = self.max_lookback - 1
+        if have <= need:
+            return True
+        print(
+            f"NOTE: tuple_test starts {have - need} quarter(s) earlier than "
+            f"max_lookback={self.max_lookback} needs for the first test origin "
+            f"(config val_end_year={self.data_config['time_splits']['val_end_year']}). "
+            f"Harmless if dataset_tag={self.dataset_tag!r} was built for a longer "
+            f"max_lookback; but if it was built with an earlier val_end_year, the "
+            f"test-origin floor is dropping real test origins."
+        )
+        return False
+
+    def _warn_if_lead_in_too_short(self, df: pd.DataFrame, split: str) -> bool:
+        """Warn when a split file predates the `max_lookback` this run is configured for.
+
+        make_dataset sizes each split's lead-in buffer from the curriculum
+        `max_lookback` at *build* time (#161). But dataset builds are deliberately
+        reused across configs -- the r13 fgrid leak closure reused the r13 tag, and
+        the Chronos configs say "do NOT rebuild" -- so raising `max_lookback` in a
+        config is the one change that silently outruns its dataset: the split file
+        keeps the old, now-too-short buffer and the origins nearest the split
+        boundary quietly run on a truncated window.
+
+        Checking at build time cannot catch that (make_dataset never runs). Checking
+        here can, because this is where the configured lookback and the file that has
+        to satisfy it are both in hand. Warn rather than raise: a short buffer
+        degrades the earliest origins, it does not invalidate the run.
+
+        Two deliberate non-checks:
+
+        * No `time_splits` in the config -> skip. make_dataset would default to
+          1994/2009, but guessing a boundary the config never stated is how a guard
+          earns a false alarm, and a false alarm in a training log is worse than no
+          check at all.
+        * Under `firm_split.enabled` the val file is partitioned by firm across the
+          whole panel (`create_firm_based_splits_int_quarter` applies the lead-in to
+          test only), so its minimum is the panel minimum and the val branch passes
+          vacuously. That is correct -- there is no val boundary to be short of --
+          but it means the test branch carries the whole check for firm-split builds.
+
+        Returns True when the buffer is sufficient (or not checkable).
+        """
+        time_splits = self.data_config.get('time_splits') or {}
+        boundary_year = {'val': time_splits.get('train_end_year'),
+                         'test': time_splits.get('val_end_year')}.get(split)
+        if boundary_year is None or df.empty:
+            return True
+        # make_dataset takes `quarter > boundary_q - pre`, so the buffer actually
+        # present is boundary_q - min(quarter) + 1. The first in-period origin sits
+        # at boundary_q + 1 and needs max_lookback - 1 quarters behind it.
+        boundary_q = period_to_qoff(f"{int(boundary_year)}Q4")
+        have = boundary_q - int(df['quarter'].min()) + 1
+        need = self.max_lookback - 1
+        if have >= need:
+            return True
+        if have < 0:
+            # The file starts *after* the boundary: this dataset was not built with
+            # these time_splits at all. Say that, rather than reporting a negative
+            # lead-in and advising a max_lookback change that would not help.
+            print(
+                f"WARNING: tuple_{split} starts after its own {boundary_year}Q4 split "
+                f"boundary, so dataset_tag={self.dataset_tag!r} was not built with these "
+                f"time_splits. Point the config at the matching build (#161)."
+            )
+            return False
+        print(
+            f"WARNING: tuple_{split} carries only {have} lead-in quarter(s) before the "
+            f"{boundary_year}Q4 split boundary, but curriculum max_lookback="
+            f"{self.max_lookback} needs {need}. This dataset was built for a shorter "
+            f"lookback; the ~{need - have} origin(s) nearest the boundary will run on a "
+            f"truncated window. Rebuild the dataset or lower max_lookback (#161)."
+        )
+        return False
 
     def _update_firm_industry_lookup(self, df: pd.DataFrame):
         """Extract firm_id -> industry_id mapping from tuple DataFrame."""
@@ -1207,7 +1341,13 @@ class FormaDataModule(L.LightningDataModule):
             dict(zip(pairs['firm_id'].astype(int), pairs['industry_id'].astype(int)))
         )
 
-    def _build_lookup_and_index(self, df):
+    def _build_lookup_and_index(self, df, first_origin_q: Optional[int] = None):
+        """Per-firm tuple arrays + the (firm_id, center_q) origin index.
+
+        `first_origin_q`, when given, floors the origin index without trimming
+        the lookup: rows before it remain available as history. The test split
+        passes `first_test_origin_q()`; train/val pass nothing.
+        """
         lookup = {}
         index = []
         slice_cache = {}  # Pre-computed slice indices for each (firm_id, center_q)
@@ -1246,6 +1386,8 @@ class FormaDataModule(L.LightningDataModule):
 
             # Define valid range for the center "forecast date"
             start_center = min_q + self.min_lookback - 1
+            if first_origin_q is not None:
+                start_center = max(start_center, first_origin_q)
             end_center = max_q - self.min_horizon
 
             if end_center >= start_center:

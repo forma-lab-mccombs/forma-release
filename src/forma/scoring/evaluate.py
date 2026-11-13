@@ -900,20 +900,149 @@ def resolve_ground_truth_path(
 ) -> Path:
     """Resolve the processed ground truth path for a feature set and split.
 
-    Delegates tagged/untagged tabular path resolution to resolve_dataset_path,
-    and keeps a legacy {split}__{feature_set}.parquet fallback for older runs.
+    Delegates tagged/untagged tabular path resolution to resolve_dataset_path
+    (which raises UntaggedDatasetFallbackError rather than substituting an
+    untagged truth for a missing tagged one -- issue #236). The pre-tabular
+    legacy ``{split}__{feature_set}.parquet`` name is honoured only when no
+    dataset_tag is set; with a tag, finding only that legacy file raises too.
+
+    ``dataset_tag`` has three states (see resolve_eval_dataset_tag):
+      - a non-empty tag: score against that tagged build;
+      - ``""``: the untagged (legacy) build, chosen explicitly;
+      - ``None``: unspecified. Raises UnspecifiedDatasetTagError if tagged
+        builds of this truth exist, instead of defaulting to the untagged one
+        (a hand-assembled pool without config.yaml would otherwise score
+        against the wrong truth without a word).
     """
-    from forma.data.config_utils import resolve_dataset_path
+    from forma.data.config_utils import (
+        UnspecifiedDatasetTagError,
+        UntaggedDatasetFallbackError,
+        resolve_dataset_path,
+        tagged_siblings,
+    )
+
+    kind = f"tabular_{split}"
+    if dataset_tag is None:
+        siblings = tagged_siblings(processed_dir, kind, feature_set)
+        if siblings:
+            listing = "\n".join(f"  - {p.name}" for p in siblings)
+            raise UnspecifiedDatasetTagError(
+                f"No dataset_tag given for feature_set={feature_set!r} split={split!r}, "
+                f"but tagged ground truth exists in {processed_dir}:\n{listing}\n"
+                f"Refusing to default to the untagged truth. Put a config.yaml with "
+                f"data.dataset_tag in the exp dir, or pass --dataset_tag <tag> "
+                f"(--dataset_tag= with an empty value -- written exactly like that, "
+                f"no space; PowerShell drops a quoted empty argument -- to score "
+                f"against the untagged build on purpose)."
+            )
 
     preferred = resolve_dataset_path(
         processed_dir, f"tabular_{split}", feature_set, dataset_tag
     )
     if preferred.exists():
         return preferred
-    legacy = processed_dir / f"{split}__{feature_set}.parquet"
+    legacy = Path(processed_dir) / f"{split}__{feature_set}.parquet"
     if legacy.exists():
+        if dataset_tag:
+            raise UntaggedDatasetFallbackError(
+                f"dataset_tag={dataset_tag!r} is set but the tagged ground truth is "
+                f"missing:\n  expected: {preferred}\n"
+                f"Only the legacy untagged truth {legacy} exists; it is a different "
+                f"build and will not be substituted (issue #236). Ship the tagged "
+                f"file, or unset data.dataset_tag to score against the legacy build."
+            )
         return legacy
     return preferred
+
+
+def add_dataset_tag_argument(parser) -> None:
+    """Add the shared ``--dataset_tag`` override to an eval entry point."""
+    parser.add_argument(
+        '--dataset_tag', '--dataset-tag', dest='dataset_tag', type=str, default=None,
+        help='Dataset tag selecting the ground truth tabular_<split>__<fs>__<tag>.parquet. '
+             'Overrides data.dataset_tag from <exp_dir>/config.yaml. Write --dataset_tag= '
+             '(equals sign, empty value) to score against the untagged (legacy) truth on '
+             'purpose; do not write --dataset_tag "" because Windows PowerShell 5.1 drops '
+             'the empty argument. If neither this nor a config tag is given and tagged '
+             'truths exist, evaluation refuses to run.')
+
+
+def resolve_eval_dataset_tag(exp_dir: Path | None, cli_tag: str | None) -> str | None:
+    """The dataset_tag an eval entry point scores against.
+
+    Precedence: ``--dataset_tag`` over ``data.dataset_tag`` in
+    ``<exp_dir>/config.yaml``.
+
+    Only the CLI can say "untagged on purpose": ``--dataset_tag=`` (empty
+    value) returns ``""``. In the config, ``dataset_tag: ""``, ``dataset_tag:
+    null`` and an absent key all mean *unspecified* and return ``None`` --
+    resolve_ground_truth_path then refuses to guess if tagged truths exist.
+    """
+    cfg_tag = None
+    if exp_dir is not None and (Path(exp_dir) / "config.yaml").exists():
+        import yaml
+        with open(Path(exp_dir) / "config.yaml", "r", encoding="utf-8-sig") as f:
+            run_cfg = yaml.safe_load(f) or {}
+        cfg_tag = (run_cfg.get("data") or {}).get("dataset_tag") or None
+    if cli_tag is not None:
+        if cfg_tag and cli_tag != cfg_tag:
+            print(f"WARNING: --dataset_tag={cli_tag!r} overrides config.yaml "
+                  f"dataset_tag={cfg_tag!r}.")
+        if cli_tag:
+            print(f"Using dataset_tag='{cli_tag}' from --dataset_tag.")
+        else:
+            print("Using the UNTAGGED ground truth (empty --dataset_tag= given explicitly).")
+        return cli_tag
+    if cfg_tag:
+        print(f"Using dataset_tag='{cfg_tag}' from run config.")
+    return cfg_tag
+
+
+DEFAULT_PROCESSED_DIR = 'data/processed'
+
+
+def add_processed_dir_argument(parser) -> None:
+    """Add the shared ``--processed_dir`` override to an eval entry point."""
+    parser.add_argument(
+        '--processed_dir', '--processed-dir', dest='processed_dir', type=str, default=None,
+        help='Directory holding the ground-truth tabular_<split>__<fs>__<tag>.parquet. '
+             'Overrides data.processed_dir from <exp_dir>/config.yaml; default '
+             f'{DEFAULT_PROCESSED_DIR}. A build in its own dir (e.g. data/processed_r14) '
+             'needs one of the two. A relative path (flag or config.yaml) resolves '
+             'against the current working directory, not exp_dir or the repo root: '
+             'run from the repo root, or pass an absolute path from a worktree.')
+
+
+def resolve_eval_processed_dir(exp_dir: Path | None, cli_dir: str | None) -> Path:
+    """The processed dir an eval entry point reads ground truth from.
+
+    Precedence mirrors resolve_eval_dataset_tag: ``--processed_dir`` over
+    ``data.processed_dir`` in ``<exp_dir>/config.yaml`` over
+    DEFAULT_PROCESSED_DIR. The path is returned as given, so a relative one
+    (from either source) resolves against the current working directory, not
+    ``exp_dir`` or the repo root. A wrong dir cannot silently mis-score a tagged
+    build: the tagged truth is then missing (resolve_ground_truth_path returns
+    the missing tagged path, or raises if only an untagged sibling is there),
+    so evaluate / dm_tests / pairwise_evaluate exit 1 having scored nothing
+    and the calibration scripts fail reading the missing truth.
+    """
+    cfg_dir = None
+    if exp_dir is not None and (Path(exp_dir) / "config.yaml").exists():
+        import yaml
+        with open(Path(exp_dir) / "config.yaml", "r", encoding="utf-8-sig") as f:
+            run_cfg = yaml.safe_load(f) or {}
+        cfg_dir = (run_cfg.get("data") or {}).get("processed_dir") or None
+    if cli_dir:
+        if cfg_dir and Path(cli_dir) != Path(cfg_dir):
+            print(f"WARNING: --processed_dir={cli_dir!r} overrides config.yaml "
+                  f"processed_dir={cfg_dir!r}.")
+        print(f"Using processed_dir='{cli_dir}' from --processed_dir.")
+        return Path(cli_dir)
+    if cfg_dir:
+        print(f"Using processed_dir='{cfg_dir}' from run config.")
+        return Path(cfg_dir)
+    return Path(DEFAULT_PROCESSED_DIR)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Evaluate forecasting models across feature sets')
@@ -940,6 +1069,8 @@ def main():
     parser.add_argument('--cache-dir', type=str, default=None,
                         help='Root directory for per-forecast error caches (default: '
                              '<forecasts dir>/eval_cache/). Point at a big drive if needed.')
+    add_dataset_tag_argument(parser)
+    add_processed_dir_argument(parser)
     args = parser.parse_args()
 
     exp_dir = Path(args.exp_dir) if args.exp_dir else None
@@ -957,32 +1088,28 @@ def main():
         with open(summary_path, "a") as f:
             f.write(f"\nEvaluation Comment: {args.comment}\n")
             f.write("-" * 50 + "\n")
-    processed_dir = Path('data/processed')
+    processed_dir = resolve_eval_processed_dir(exp_dir, args.processed_dir)
     raw_dir = Path('data/raw')
 
-    # Pull dataset_tag from the run's saved config so ground truth matches the
-    # split the run was trained against. Falls back to legacy untagged naming.
-    dataset_tag: str | None = None
-    if exp_dir and (exp_dir / "config.yaml").exists():
-        import yaml
-        with open(exp_dir / "config.yaml", "r", encoding="utf-8-sig") as f:
-            run_cfg = yaml.safe_load(f) or {}
-        dataset_tag = (run_cfg.get("data") or {}).get("dataset_tag")
-        if dataset_tag:
-            print(f"Using dataset_tag='{dataset_tag}' from run config.")
+    # Ground truth must match the build the run trained against: --dataset_tag,
+    # else data.dataset_tag from the run's saved config. A tag whose files are
+    # missing never falls back to untagged, and an unspecified tag refuses to
+    # default to untagged while tagged truths exist (#236).
+    dataset_tag = resolve_eval_dataset_tag(exp_dir, args.dataset_tag)
 
     # Splits to evaluate: test is primary, train and val are for diagnostics
     splits_to_evaluate = [s.strip() for s in args.splits.split(',') if s.strip()]
 
     feature_sets = discover_feature_sets(forecasts_dir, args.feature_set, splits_to_evaluate)
     if not feature_sets:
-        print("No valid forecast files found. Exiting.")
+        print("No valid forecast files found. Exiting non-zero (nothing scored).")
         return 1
 
     # Optional filtering (defensive check if filters above returned no matching set)
     if args.feature_set:
         if args.feature_set not in feature_sets:
-            print(f"No forecasts found for feature_set={args.feature_set}. Exiting.")
+            print(f"No forecasts found for feature_set={args.feature_set}. "
+                  f"Exiting non-zero (nothing scored).")
             return 1
         feature_sets = [args.feature_set]
 
@@ -998,8 +1125,9 @@ def main():
         print("No feature sets have both forecasts and ground truth. Exiting.")
         if feature_sets:
             example_fs = feature_sets[0]
-            expected = processed_dir / f"tabular_test__{example_fs}.parquet"
+            expected = ground_truth_paths[example_fs]
             print(f"Expected ground truth like: {expected}")
+        print("Exiting non-zero (nothing scored).")
         return 1
 
     # Track per-split eval failures across every feature_set/split so the process
@@ -1010,6 +1138,7 @@ def main():
     # caller grepping the exit code would otherwise see 0. Collect failures here
     # and sys.exit(1) once the loops finish.
     eval_failures: list[str] = []
+    n_scored = 0
 
     for fs in evaluable_feature_sets:
         print(f"\n=== Evaluating feature_set: {fs} ===")
@@ -1051,6 +1180,7 @@ def main():
                                 cache_root=args.cache_dir,
                                 rebuild_cache=args.rebuild_cache,
                                 sigma_floor=args.sigma_floor)
+                n_scored += 1
             except Exception as e:
                 print(f"  [{split_name}] Error evaluating: {e}")
                 import traceback
@@ -1066,6 +1196,10 @@ def main():
         for f in eval_failures:
             print(f"  - {f}")
         print("Exiting non-zero so pipeline callers see the failure.")
+        sys.exit(1)
+    if n_scored == 0:
+        print("\nNo split was scored (every split lacked forecasts or ground truth). "
+              "Exiting non-zero so pipeline callers do not read success.")
         sys.exit(1)
 
     print("\nAll evaluations complete.")

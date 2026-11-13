@@ -35,7 +35,8 @@ refit on train+val).
 
 COST/VENUE: intended for a cuML (RAPIDS) GPU path; on CPU sklearn it is very slow.
 Budget on the order of tens of GPU-hours. Falls back to sklearn automatically if
-cuML is unavailable. Requires a canonical ProForma-20Q build at data/processed
+cuML is unavailable. Requires a canonical ProForma-20Q build at data/processed (the config's
+`data.processed_dir`)
 and the `[competitors]` extra installed.
 """
 from __future__ import annotations
@@ -48,7 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> int:
-    cfg = REPO_ROOT / "configs" / "r13_random_forest.yaml"
+    cfg = REPO_ROOT / "configs" / "r14_random_forest.yaml"
     if not cfg.exists():
         sys.exit(f"ERROR: config not found: {cfg}")
     print("NOTE: Random Forest regeneration is GPU-oriented (cuML) and can take tens "

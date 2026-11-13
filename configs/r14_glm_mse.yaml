@@ -1,0 +1,113 @@
+# GLM benchmark - chained GBM, MSE/L2 objective (companion to r14_glm.yaml;
+# the only substantive difference is the LightGBM objective). Reuses the
+# pf_full_glm build made by r14_glm.yaml - do NOT rebuild.
+#
+# Same data block as the R13 glm.yaml (v2, r13 reg chains) except the camera-ready fixes:
+# dataset_tag, raw_path, processed_dir, k_target_total_kurtosis. One tag serves
+# both feature sets (file suffixes carry the feature set). model_name is kept
+# from v2 so the GBM-column keys (chained_gbm_mse_v2__pf_full_glm) stay stable.
+# targets.present_in_q0 stays false, as in v2: benign for scoring.
+#
+#   python -m forma.train --config configs/r14_glm_mse.yaml --forecast-splits test
+experiment:
+  name: "r14_glm_mse"
+  description: "GLM benchmark: chained GBM (regression_l2) on pf_full_glm features (GLM 2026 chain targets), canonical camera-ready build."
+
+data:
+  feature_set: "pf_full_glm"
+  dataset_tag: "r14_node_optionD_indfe_val8"
+  # Camera-ready build: TOTAL kurtosis 3 (#285), untrimmed raw panel
+  # (#286), own processed dir (id maps default to data/processed/*_id_map.csv).
+  raw_path: "data/raw/compustat_fundq.parquet"
+  processed_dir: "data/processed"
+  identities_path: "configs/identities.json"
+  feature_sets_config: "configs/feature_sets.yaml"
+  batch_size: 512
+  num_workers: 8
+  predict_batch_size: 512
+  use_future_grid: false
+
+  time_splits:
+    train_end_year: 2001
+    val_end_year: 2009
+
+  tabular_industry_fe: true
+  industry_config_path: "configs/ff48_sic_ranges.json"
+
+  sector_exclusions:
+    sic_ranges:
+      - start: 6000
+        end: 6999
+
+  feature_engineering:
+    k_target_total_kurtosis: 3.0   # CORRECTED target (#285); must match r14_baselines for the shared-stem acceptance check.
+    reg_mu_scale_lag: 0
+    reg_mu_feature_lags: [0]
+    reg_sig_scale_lag: 4
+    reg_sig_feature_lags: [0, 8]
+    reg_k_scale_lag: 4
+    reg_k_feature_lags: [0, 8]
+    max_abs_zscore: 6.0
+    min_lookback: 4
+    recent_levels: 4
+    yoy_changes: 8
+    forecast_horizon: 20
+    imputation:
+      use: true
+      n_factors: 10
+    tabular_min_coverage: 0.0
+
+  targets:
+    all: false
+    present_in_q0: false
+    variables:
+      # Income statement (11)
+      - revtq
+      - cogsq
+      - xsgaq
+      - dpq
+      - xintq
+      - nopiq
+      - spiq
+      - txtq
+      - miiq
+      - xidoq
+      - dvpq
+      # Balance sheet (15)
+      - rectq
+      - invtq
+      - acoq
+      - ppentq
+      - intanq
+      - aoq
+      - dlcq
+      - apq
+      - txpq
+      - lcoq
+      - dlttq
+      - txditcq
+      - loq
+      - mibtq
+      - acomincq
+      # Computed (2)
+      - neiq
+      - dvcq
+
+results_dir: "results/forecasts"
+stop_on_error: true
+
+models:
+  chained_gbm:
+    type: "chained_gbm"
+    parameters:
+      objective: "regression_l2"
+      model_name: "chained_gbm_mse_v2"
+      verbose: -1
+      random_state: 42
+      early_stopping_patience: 10
+      n_estimators: 500
+      max_workers: 6   # each worker holds a copy of train+val: ~12.5 GB/worker on the
+                       # R13 build, x~1.17 on the camera-ready build -> ~88 GB. Run on a
+                       # 128 GB host; a 64 GB box OOMs.
+      hyperparameter_grid:
+        num_leaves: [15, 31]

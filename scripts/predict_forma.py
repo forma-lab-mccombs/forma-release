@@ -35,21 +35,34 @@ Hugging Face Hub under separate licence terms (see README, "Getting the
 weights"). Fetch them into ``checkpoints/`` -- the default ``--checkpoints-dir``
 -- with::
 
-    hf download forma-lab-mccombs/forma --include "checkpoints/*" \
-        --local-dir checkpoints
+    hf download forma-lab-mccombs/forma --include "checkpoints/*" --local-dir .
+
+The Hub names the checkpoints by density, not by forecast family:
+``checkpoints/forma_gaussian_seed{60..64}.ckpt`` (family ``forma_fgrid``) and
+``checkpoints/forma_laplace_seed{60..64}.ckpt`` (family ``forma_lap05_fgrid``).
+``--family`` looks for those names first, then for the older
+``{family}_seed{seed}.ckpt`` name (see ``resolve_checkpoint``).
 
 Typical use (one seed):
 
     python scripts/predict_forma.py \
-        --config configs/r13_forma_fgrid_seed60.yaml \
-        --checkpoint checkpoints/forma_fgrid_seed60.ckpt \
+        --config configs/r14_forma_fgrid_seed60.yaml \
+        --checkpoint checkpoints/forma_gaussian_seed60.ckpt \
         --data-dir /path/to/proforma20q/data/processed \
         --out results/forecasts
 
-Whole family (5 seeds -> per-seed parquets; combine with group_seed_forecasts.py):
+Whole family (5 seeds -> per-seed parquets):
 
     python scripts/predict_forma.py --family forma_fgrid \
         --data-dir /path/to/proforma20q/data/processed --out results/forecasts
+
+then materialize the 5-seed mixture (``--expect-family laplace`` for
+``forma_lap05_fgrid``):
+
+    python scripts/materialize_seed_mixture.py --src results/forecasts \
+        --dest results/mixtures \
+        --arm "forma_fgrid__pf_full__*__test__predictions.parquet" \
+        --expect-seeds 5 --expect-family gaussian
 
 The ProForma-20Q build directory must be the canonical build
 (``proforma20q build`` against the frozen canonical regularization stats): it
@@ -241,22 +254,29 @@ def predict_one(config_path: Path, checkpoint: Path, data_dir: Path, out_dir: Pa
 
     acc_path, ind_path = _assert_id_maps(checkpoint, data_dir)
 
+    firm_map_path = _resolve_firm_map(data_dir, firm_map, derive_firm_map_from_raw)
+
     config = load_config(str(config_path))
     dcfg = config.setdefault("data", {})
     dcfg["processed_dir"] = str(data_dir)
-    # Force the checkpoint-coupled maps; take firm map + identities from repo/build.
-    dcfg["account_map_path"] = str(acc_path)
-    dcfg["industry_id_map_path"] = str(ind_path)
-    dcfg["firm_id_map_path"] = str(
-        _resolve_firm_map(data_dir, firm_map, derive_firm_map_from_raw))
+    # The id-map paths go on the data module below, NOT into the config:
+    # resolve_id_map_path confines `data.*_id_map_path` to processed_dir (the
+    # build's own maps), while inference deliberately uses the checkpoint-coupled
+    # maps shipped in this package and possibly an external --firm-map.
+    for key in ("account_map_path", "account_id_map_path",
+                "industry_id_map_path", "firm_id_map_path"):
+        dcfg.pop(key, None)
     dcfg["identities_path"] = str(REPO_ROOT / "configs" / "identities.json")
     config["forecast_splits"] = ["test"]
     config.setdefault("results_dir", str(out_dir))
 
-    # Build the data module directly so account_map_path is the SHIPPED map
-    # (create_data_module would instead derive it from the build dir).
+    # Build the data module, then pin the SHIPPED account/industry maps and the
+    # resolved firm map on it (create_data_module would derive them from the
+    # build dir). generate_predictions decodes ids with these same attributes.
     dm = create_data_module("forma", dcfg)
-    dm.account_map_path = acc_path  # belt-and-suspenders: pin the shipped account map
+    dm.account_map_path = acc_path
+    dm.industry_id_map_path = str(ind_path)
+    dm.firm_id_map_path = firm_map_path
 
     model = FormaModel.load_from_checkpoint(str(checkpoint), map_location="cpu")
     forecast_name = config.get("models", {}).get("forma", {}).get("forecast_name", "forma")
@@ -297,10 +317,43 @@ def _validate(fpath: Path) -> None:
 
 
 FAMILIES = {
-    "forma_fgrid": "r13_forma_fgrid_seed{seed}.yaml",
-    "forma_lap05_fgrid": "r13_forma_lap05_fgrid_seed{seed}.yaml",
+    "forma_fgrid": "r14_forma_fgrid_seed{seed}.yaml",
+    "forma_lap05_fgrid": "r14_forma_lap05_fgrid_seed{seed}.yaml",
 }
 SEEDS = [60, 61, 62, 63, 64]
+# Checkpoint file names as published on the Hugging Face Hub (by density), per
+# family, and the density each family's seeds carry (materializer gate).
+HUB_CHECKPOINTS = {
+    "forma_fgrid": "forma_gaussian_seed{seed}.ckpt",
+    "forma_lap05_fgrid": "forma_laplace_seed{seed}.ckpt",
+}
+FAMILY_DENSITY = {"forma_fgrid": "gaussian", "forma_lap05_fgrid": "laplace"}
+
+
+def checkpoint_candidates(checkpoints_dir: Path, family: str, seed: int) -> list[Path]:
+    """Where a family's seed checkpoint may live, in lookup order: the Hub name,
+    the Hub name one ``checkpoints/`` level down (``hf download --include
+    "checkpoints/*" --local-dir checkpoints`` nests it there), then the older
+    ``{family}_seed{seed}.ckpt`` name."""
+    hub = HUB_CHECKPOINTS[family].format(seed=seed)
+    return [checkpoints_dir / hub,
+            checkpoints_dir / "checkpoints" / hub,
+            checkpoints_dir / f"{family}_seed{seed}.ckpt"]
+
+
+def resolve_checkpoint(checkpoints_dir: Path, family: str, seed: int) -> Path:
+    """The first existing candidate; exits listing every name tried otherwise."""
+    candidates = checkpoint_candidates(checkpoints_dir, family, seed)
+    for c in candidates:
+        if c.exists():
+            return c
+    tried = "\n".join(f"  {c}" for c in candidates)
+    sys.exit(
+        f"ERROR: no checkpoint for {family} seed {seed}. Looked for:\n{tried}\n"
+        f"Fetch the weights with\n"
+        f"  hf download forma-lab-mccombs/forma --include \"checkpoints/*\" --local-dir .\n"
+        f"or point --checkpoints-dir at the directory that holds them."
+    )
 
 
 def main() -> int:
@@ -341,15 +394,17 @@ def main() -> int:
         produced = []
         for seed in SEEDS:
             cfg = args.configs_dir / FAMILIES[args.family].format(seed=seed)
-            ckpt = args.checkpoints_dir / f"{args.family}_seed{seed}.ckpt"
+            ckpt = resolve_checkpoint(args.checkpoints_dir, args.family, seed)
             print(f"[{args.family} seed {seed}]")
             produced.append(predict_one(cfg, ckpt, args.data_dir, args.out, args.validate,
                                         firm_map=args.firm_map,
                                         derive_firm_map_from_raw=args.derive_firm_map_from_raw))
         print(f"\nProduced {len(produced)} per-seed forecasts for {args.family}.")
         print("Combine into the 5-seed mixture with:")
-        print(f"  python scripts/group_seed_forecasts.py --materialize "
-              f"--forecasts {args.out} --arm {args.family}")
+        print(f"  python scripts/materialize_seed_mixture.py --src {args.out} "
+              f"--dest <mixture dir> "
+              f"--arm '{args.family}__pf_full__*__test__predictions.parquet' "
+              f"--expect-seeds 5 --expect-family {FAMILY_DENSITY[args.family]}")
         return 0
 
     if not args.config or not args.checkpoint:

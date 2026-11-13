@@ -77,12 +77,12 @@ residual_l): no truth join, one stream over (target, horizon) blocks.
 
 Sample discipline: cells where the actual, the change-space baseline, and
 ALL K seed residuals+sigmas are finite — the fgrid family's own footprint,
-which is the binding constraint of the r13 likelihood pool (expected count
-327,244,429; printed for verification).
+which is the binding constraint of the likelihood pool (expected count
+379,859,933 on the camera-ready build; printed for verification).
 
 Usage:
   python scripts/mixture_calibration.py \
-      --exp_dir <forecasts>/r13_lik_pool \
+      --exp_dir <forecasts>/lik_pool \
       --family forma_fgrid --seeds 60,61,62,63,64 \
       --out results/icaif26_panels/full_sample_likelihood
 
@@ -111,7 +111,14 @@ from forma.scoring.eval_cache import (  # noqa: E402
     file_fingerprint,
     PARQUET_ENGINE,
 )
-from forma.scoring.evaluate import _read_nll_meta  # noqa: E402
+from forma.scoring.evaluate import (  # noqa: E402
+    _read_nll_meta,
+    add_dataset_tag_argument,
+    add_processed_dir_argument,
+    resolve_eval_dataset_tag,
+    resolve_eval_processed_dir,
+    resolve_ground_truth_path,
+)
 
 NOMINAL_LEVELS = (0.50, 0.80, 0.90, 0.95)
 PIT_BINS = 20
@@ -272,27 +279,20 @@ def main() -> None:
                          "for forma_fgrid), so pass --mask_families forma_fgrid "
                          "when scoring FFNN.")
     ap.add_argument('--out', required=True, help="output directory for the CSVs")
-    ap.add_argument('--processed_dir', default='data/processed',
-                    help="dir holding the tabular_<split>__<fs>__<tag>.parquet truth")
     ap.add_argument('--cache-dir', dest='cache_dir', default=None,
                     help="override root for the error caches (default: "
                          "<exp_dir>/forecasts/eval_cache), matching evaluate.py")
+    add_dataset_tag_argument(ap)
+    add_processed_dir_argument(ap)
     args = ap.parse_args()
 
     exp_dir = Path(args.exp_dir)
     seeds = [s.strip() for s in args.seeds.split(',') if s.strip()]
     K = len(seeds)
 
-    dataset_tag = None
-    cfg_path = exp_dir / 'config.yaml'
-    if cfg_path.exists():
-        import yaml
-        with open(cfg_path, 'r', encoding='utf-8-sig') as f:
-            run_cfg = yaml.safe_load(f) or {}
-        dataset_tag = (run_cfg.get('data') or {}).get('dataset_tag')
-
-    from forma.scoring.evaluate import resolve_ground_truth_path  # noqa: E402
-    truth_path = resolve_ground_truth_path(Path(args.processed_dir), args.feature_set,
+    dataset_tag = resolve_eval_dataset_tag(exp_dir, args.dataset_tag)
+    processed_dir = resolve_eval_processed_dir(exp_dir, args.processed_dir)
+    truth_path = resolve_ground_truth_path(processed_dir, args.feature_set,
                                            args.split, dataset_tag=dataset_tag)
     print(f"Loading truth: {truth_path}", flush=True)
     truth_df = pd.read_parquet(truth_path, engine=PARQUET_ENGINE)

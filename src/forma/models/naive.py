@@ -23,15 +23,30 @@
 # limitations under this License.
 
 """
-Naive Random Walk with Drift model for financial forecasting.
+Seasonal random walk baselines (with and without drift) for financial forecasting.
 
-This model implements the simplest baseline approach described in docs/architecture/EXPERIMENTAL_DESIGN.md:
-- Uses the last observed value as the base
-- Adds the historical average quarterly growth rate for the firm in question
-- Forecasts: value_i,q+h = value_i,q=0 + h * avg_growth_rate_i
+Both models are SEASONAL: the base for horizon h is the most recent observation
+falling in the SAME fiscal quarter as the target, not the last observed value.
+The base lag is (4 - h) % 4, so h=1 reads q-3, h=2 reads q-2, h=3 reads q-1, and
+h=4 reads q; the base therefore sits 4, 8, 12, 16, or 20 quarters before the
+target. At h in {4, 8, 12, 16, 20} the lag is 0 and the seasonal random walk
+coincides with a plain no-change forecast, but at every other horizon it does
+not. This is the standard naive expectation for quarterly accounting series
+(Foster 1977; Bernard and Thomas 1990), which are seasonally differenced.
 
-avg_growth_rate_i is computed as the mean year-over-year changes in "value" over the last 4 quarters:
-avg_growth_rate = mean( value_yoy_0 + value_yoy_1 + value_yoy_2 + value_yoy_3 ) )"""
+The seasonal base is assigned upstream, in
+FormaNaiveDataModule._create_naive_prediction_data (src/forma/data/tabular_data.py),
+which emits one row per (target, lag, horizon) with the chosen lag's level in
+`current_value`. This module only consumes `current_value`.
+
+- NaiveModel (`naive`), the paper's baseline:
+      value_i,q+h = value_i,q-((4-h) % 4)
+- NaiveDriftModel (`naive_drift`), not used in the ICAIF'26 paper:
+      value_i,q+h = value_i,q-lag + (h + lag) * avg_growth_rate_i / 4
+  where the effective horizon (h + lag) spans base to target, and
+  avg_growth_rate_i is the mean of the last 4 year-over-year changes:
+      mean( value_yoy_0, value_yoy_1, value_yoy_2, value_yoy_3 )
+"""
 
 import pandas as pd
 from typing import Optional
@@ -103,7 +118,11 @@ def _predict_common(
     return forecast_df
 
 class NaiveDriftModel(BaseModel):
-    """Naive Random Walk with Drift model with shared core prediction logic."""
+    """Seasonal random walk WITH drift; shared core prediction logic.
+
+    Base is the same-fiscal-quarter lag (see module docstring), not the last
+    observed value. Not used in the ICAIF'26 paper.
+    """
     def __init__(self, growth_periods: int = 4, min_history_required: int = 8, **kwargs):
         super().__init__("naive_drift", **kwargs)
         self.growth_periods = growth_periods
@@ -143,7 +162,12 @@ class NaiveDriftModel(BaseModel):
 
 
 class NaiveModel(BaseModel):
-    """Naive (no drift) model reusing shared prediction logic."""
+    """Seasonal random walk, no drift; the paper's `naive` baseline.
+
+    Predicts the same-fiscal-quarter base unchanged (see module docstring):
+    value_i,q+h = value_i,q-((4-h) % 4). This is NOT a plain no-change
+    forecast except at h in {4, 8, 12, 16, 20}.
+    """
     def __init__(self, **kwargs):
         super().__init__("naive", **kwargs)
 

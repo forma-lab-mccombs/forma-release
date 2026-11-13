@@ -45,6 +45,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from tqdm.auto import tqdm
 import inspect
+import warnings
 
 # threadpoolctl ships with scikit-learn; we use it to cap BLAS/LAPACK threads to
 # one *per worker* while the outer refit loop is parallel, so linear/ridge arms
@@ -164,6 +165,26 @@ def _callable_supported_kwargs(callable_obj, kwargs: Dict) -> Dict:
     return {k: v for k, v in kwargs.items() if k in allowed}
 
 
+def _positional_predictions(pred, n_rows: int) -> np.ndarray:
+    """Return an estimator's predictions as a flat positional numpy array.
+
+    cuML (25.12) given a pandas frame returns a pd.Series with a fresh 0..n-1
+    index, not the input's labels. predict() builds its wide frame with
+    index=X_test_clean.index, and pandas aligns a Series on labels, so a gappy
+    index (a dropped NaN-feature row) or an offset one would silently shift or
+    blank the predictions. Stripping the index here makes every estimator line
+    up by position, as sklearn's numpy output always has.
+    """
+    if hasattr(pred, 'to_numpy'):        # pandas / cudf Series or DataFrame
+        pred = pred.to_numpy()
+    elif hasattr(pred, 'get'):           # cupy array -> host
+        pred = pred.get()
+    arr = np.asarray(pred).reshape(-1)
+    if arr.shape[0] != n_rows:
+        raise ValueError(f"estimator returned {arr.shape[0]} predictions for {n_rows} rows")
+    return arr
+
+
 def _set_cuml_random_forest_seed_param(estimator_cls, params: Dict, seed_value) -> None:
     """Set seed/random_state param on cuML RF depending on what's supported."""
     if seed_value is None:
@@ -171,7 +192,15 @@ def _set_cuml_random_forest_seed_param(estimator_cls, params: Dict, seed_value) 
 
     supported = None
     try:
-        supported = set(inspect.signature(estimator_cls).parameters.keys())
+        sig_params = inspect.signature(estimator_cls).parameters
+        supported = set(sig_params.keys())
+        # cuML 25.12's constructor is `(self, **kwargs)`: no named seed parameter,
+        # but it accepts random_state. A signature that takes **kwargs but names
+        # neither seed nor random_state is treated like an unknown one (whatever
+        # else it names), or the configured seed is silently dropped.
+        if ('random_state' not in supported and 'seed' not in supported
+                and any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig_params.values())):
+            supported = None
     except (TypeError, ValueError):
         supported = None
 
@@ -182,7 +211,9 @@ def _set_cuml_random_forest_seed_param(estimator_cls, params: Dict, seed_value) 
         params['random_state'] = seed_value
     elif 'seed' in supported:
         params['seed'] = seed_value
-    # else: neither supported; do nothing
+    else:
+        warnings.warn(f"cuML RandomForestRegressor accepts neither random_state nor seed; "
+                      f"configured seed {seed_value} dropped, forest is UNSEEDED", RuntimeWarning)
 
 class MultiHorizonBaselineModel(BaseModel):
     """
@@ -906,7 +937,7 @@ class MultiHorizonBaselineModel(BaseModel):
                     pdict = {}
                     for target_col in group:
                         model, loaded = self._get_model(target_col)
-                        pdict[target_col] = model.predict(X_test_clean)
+                        pdict[target_col] = _positional_predictions(model.predict(X_test_clean), n_test_clean)
                         if loaded:
                             del model
                     wide = pd.DataFrame(pdict, index=X_test_clean.index)
@@ -928,7 +959,7 @@ class MultiHorizonBaselineModel(BaseModel):
         predictions_dict = {}
         for target_col in self.target_columns:
             model, loaded = self._get_model(target_col)
-            predictions_dict[target_col] = model.predict(X_test_clean)
+            predictions_dict[target_col] = _positional_predictions(model.predict(X_test_clean), n_test_clean)
             if loaded:
                 del model
 
@@ -1194,11 +1225,14 @@ class SklearnBaselineModel(MultiHorizonBaselineModel):
                 # print(f"  Using GPU-accelerated cuML RandomForest")
                 try:
                     return cuMLRandomForestRegressor(**filtered_params)
-                except TypeError:
+                except TypeError as err:
                     # Final fallback: drop any seed-like args and retry once.
-                    filtered_params.pop('seed', None)
-                    filtered_params.pop('random_state', None)
-                    return cuMLRandomForestRegressor(**filtered_params)
+                    dropped = {k: filtered_params.pop(k) for k in ('seed', 'random_state') if k in filtered_params}
+                    est = cuMLRandomForestRegressor(**filtered_params)   # a non-seed TypeError re-raises here
+                    if dropped:
+                        warnings.warn(f"cuML RandomForestRegressor rejected {dropped} ({err}); "
+                                      f"built without it, forest is UNSEEDED", RuntimeWarning)
+                    return est
             else:
                 # Fall back to sklearn CPU implementation
                 if 'n_jobs' not in all_params:

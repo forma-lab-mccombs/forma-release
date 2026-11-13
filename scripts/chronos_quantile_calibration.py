@@ -53,11 +53,11 @@ mixture_calibration.py). This script scores chronos's own predictive from the
     Gaussian closed form on the forecast file's (residual, sigma) with the
     same --sigma-floor policy evaluate.py used for the published number.
 
-Sample discipline: the r13 likelihood pool's common sample is the masked-seed
+Sample discipline: the likelihood pool's common sample is the masked-seed
 family's own footprint — cells where the actual, the change-space baseline,
 and ALL K mask-family seeds' residuals+sigmas are finite (sigma > 0), exactly
-mixture_calibration.py's binding-family mask (expected count 327,244,429 for
-forma_fgrid / pf_full; printed for verification). Chronos cells outside that
+mixture_calibration.py's binding-family mask (expected count 379,859,933 for
+forma_fgrid / pf_full on the camera-ready build; printed for verification). Chronos cells outside that
 mask are ignored; mask cells the quantile file does NOT cover are counted and
 reported loudly — a nonzero count means the "identical sample" claim fails.
 
@@ -69,7 +69,7 @@ non-coverage — the honest severe-under-coverage result, no NLL-style blow-up.
 Usage:
   python scripts/chronos_quantile_calibration.py \
       --quantiles <dir>/chronos_raw__pf_full__test__quantiles.parquet \
-      --exp_dir <forecasts>/r13_lik_pool \
+      --exp_dir <forecasts>/lik_pool \
       --mask_family forma_fgrid --mask_seeds 60,61,62,63,64 \
       --out results/icaif26_panels/full_sample_likelihood/chronos_raw_calibration
 
@@ -107,7 +107,14 @@ from forma.scoring.eval_cache import (  # noqa: E402
     file_fingerprint,
     PARQUET_ENGINE,
 )
-from forma.scoring.evaluate import _crps_per_entry  # noqa: E402
+from forma.scoring.evaluate import (  # noqa: E402
+    _crps_per_entry,
+    add_dataset_tag_argument,
+    add_processed_dir_argument,
+    resolve_eval_dataset_tag,
+    resolve_eval_processed_dir,
+    resolve_ground_truth_path,
+)
 from forma.models.chronos_ts import ChronosRawTSModel  # noqa: E402  (_mean_weights only)
 
 PIT_BINS = 20
@@ -295,14 +302,12 @@ def main() -> None:
                          "evaluate.py's published policy; default 1e-4). The "
                          "quantile-based columns never touch sigma.")
     ap.add_argument('--out', required=True, help="output directory for the CSVs")
-    ap.add_argument('--processed_dir', default='data/processed',
-                    help="dir holding the tabular_<split>__<fs>__<tag>.parquet truth")
     ap.add_argument('--cache-dir', dest='cache_dir', default=None,
                     help="override root for the error caches (default: "
                          "<exp_dir>/forecasts/eval_cache), matching evaluate.py")
     ap.add_argument('--expected_n', type=int, default=None,
                     help="assert the pooled scored cell count equals this "
-                         "(e.g. 327244429 for the r13 pf_full likelihood pool)")
+                         "(e.g. 379859933 for the camera-ready pf_full likelihood pool)")
     ap.add_argument('--allow-uncovered', dest='allow_uncovered', action='store_true',
                     help="write CSVs even when some common-sample cells have no "
                          "quantile row (default: hard-fail — a partial sample "
@@ -310,7 +315,9 @@ def main() -> None:
     ap.add_argument('--clip-rail', dest='clip_rail', type=float, default=6.0,
                     help="|truth| at-or-beyond this value counts as rail-saturated "
                          "in saturation_split.csv. Must match the build's label "
-                         "clip (configs' max_abs_zscore; 6.0 for every r13 build).")
+                         "clip (configs' max_abs_zscore; 6.0 for every r13 and r14 build).")
+    add_dataset_tag_argument(ap)
+    add_processed_dir_argument(ap)
     args = ap.parse_args()
 
     t0 = time.time()
@@ -318,16 +325,9 @@ def main() -> None:
     q_path = Path(args.quantiles)
     seeds = [s.strip() for s in args.mask_seeds.split(',') if s.strip()]
 
-    dataset_tag = None
-    cfg_path = exp_dir / 'config.yaml'
-    if cfg_path.exists():
-        import yaml
-        with open(cfg_path, 'r', encoding='utf-8-sig') as f:
-            run_cfg = yaml.safe_load(f) or {}
-        dataset_tag = (run_cfg.get('data') or {}).get('dataset_tag')
-
-    from forma.scoring.evaluate import resolve_ground_truth_path  # noqa: E402
-    truth_path = resolve_ground_truth_path(Path(args.processed_dir), args.feature_set,
+    dataset_tag = resolve_eval_dataset_tag(exp_dir, args.dataset_tag)
+    processed_dir = resolve_eval_processed_dir(exp_dir, args.processed_dir)
+    truth_path = resolve_ground_truth_path(processed_dir, args.feature_set,
                                            args.split, dataset_tag=dataset_tag)
     print(f"Loading truth: {truth_path}", flush=True)
     truth_df = pd.read_parquet(truth_path, engine=PARQUET_ENGINE)
@@ -458,7 +458,7 @@ def main() -> None:
             h = horizons[b_id % grid.n_h]
 
             # Chronos-2 emits mild quantile crossing on a nontrivial share of
-            # rows (~8.5% at r13 pf_full scale). The predictive-CDF scoring
+            # rows (~8.5% at pf_full scale on the R13 build). The predictive-CDF scoring
             # needs nondecreasing knots -> sort those rows. The same-run
             # cross-check below must use the RAW order: the writer integrated
             # the mean over the levels as emitted, and interior grid weights

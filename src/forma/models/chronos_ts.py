@@ -540,8 +540,8 @@ class ChronosRawTSModel(ChronosTSModel):
         self,
         processed_dir: Optional[str] = None,
         dataset_suffix: Optional[str] = None,
-        firm_id_map_path: str = "data/processed/firm_id_map.csv",
-        account_id_map_path: str = "data/processed/account_id_map.csv",
+        firm_id_map_path: Optional[str] = None,
+        account_id_map_path: Optional[str] = None,
         point_stat: str = "mean",
         write_median_sibling: bool = True,
         save_quantiles: bool = False,
@@ -605,6 +605,18 @@ class ChronosRawTSModel(ChronosTSModel):
 
         if self.processed_dir is None:
             self.processed_dir = str(getattr(dm, "data_dir", "data/processed"))
+        # Id maps belong to the build in processed_dir (was a hard-coded
+        # data/processed default, so a build elsewhere decoded with the wrong maps).
+        # Same resolver as train/make_dataset: data.*_id_map_path if set (must sit
+        # in processed_dir), else <processed_dir>/*_id_map.csv.
+        from forma.data.config_utils import resolve_id_map_path
+        dm_data_config = getattr(dm, "data_config", None)
+        if self.firm_id_map_path is None:
+            self.firm_id_map_path = resolve_id_map_path(
+                dm_data_config, "firm", processed_dir=self.processed_dir).as_posix()
+        if self.account_id_map_path is None:
+            self.account_id_map_path = resolve_id_map_path(
+                dm_data_config, "account", processed_dir=self.processed_dir).as_posix()
         if self.dataset_suffix is None:
             tag = getattr(dm, "dataset_tag", None)
             self.dataset_suffix = f"{self.feature_set}__{tag}" if tag else self.feature_set
@@ -629,6 +641,9 @@ class ChronosRawTSModel(ChronosTSModel):
 
     def _load_id_maps(self) -> Tuple[Dict[int, int], Dict[str, int]]:
         """Return (gvkey_int -> firm_id_int, account_name -> account_id)."""
+        if self.firm_id_map_path is None or self.account_id_map_path is None:
+            raise ValueError("id-map paths unresolved: call fit() (derives them from "
+                             "processed_dir) or load() a saved model first")
         fm = pd.read_csv(self.firm_id_map_path, dtype={"firm_id": str})
         fm = fm.drop_duplicates(subset=["firm_id"], keep="first")
         firm_map = {

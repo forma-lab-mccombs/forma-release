@@ -244,6 +244,12 @@ class NaiveDriftDataModule:
                     print("NO-CV MODE: Combining train and validation data for training...")
                     val_df = pd.read_parquet(val_path)
                     train_df = pd.concat([train_df, val_df], ignore_index=True)
+                else:
+                    print("!" * 78)
+                    print(f"WARNING: no_cv=True but the validation split is missing "
+                          f"({val_path}); fitting on the TRAIN split ONLY. The fit "
+                          f"window is shorter than a no_cv run's should be.")
+                    print("!" * 78)
 
             # Convert to naive prediction format (same format as test data)
             print("Loading train data for naive prediction format...")
@@ -262,6 +268,12 @@ class NaiveDriftDataModule:
     def _create_naive_prediction_data(self, tabular_df: pd.DataFrame, split_name: str = 'test') -> pd.DataFrame:
         """
         Create prediction data for Naive/Naive Drift models using cyclical pattern.
+
+        This cyclical pattern is what makes both naive models SEASONAL random
+        walks: the base for horizon h is the most recent observation in the same
+        fiscal quarter as the target (lag (4-h) % 4), not the last observed
+        value. It coincides with a plain no-change forecast only at h in
+        {4, 8, 12, 16, 20}. See src/forma/models/naive.py.
 
         Uses cyclical prediction pattern:
         - q-3 values (level_3) predict q+1, q+5, q+9, etc. (horizons 1, 5, 9, ...)

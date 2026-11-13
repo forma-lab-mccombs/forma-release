@@ -16,11 +16,24 @@ This repo is **inference-first**: a reviewer goes checkpoint → forecast parque
 Real-data reproduction requires WRDS/Compustat credentials and the companion
 package's dataset build.
 
-**Verified:** the published checkpoints carry tensors bit-identical to the
-originals, and the canonical artifacts reproduce Panel A — Forma **R² 0.289**
-(exact to 17 significant figures) and the FFNN rows **0.253 / 0.247** — plus
-Panel C (**NLL 0.160 / CRPS 0.293**), all on the published 327,244,429-cell
-sample. Full record: [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
+> **This is the camera-ready (R14) release** of the ICAIF '26 paper. The
+> camera-ready revision re-ran every model on a refreshed build,
+> `r14_node_optionD_indfe_val8`, so every number, checkpoint and artifact
+> changed from the pre-camera-ready (R13) release. What changed in the build:
+> the asinh scale k now targets total kurtosis 3 (R13 used excess 3), the CRSP
+> link-window trim is gone (WRDS Compustat only), and the no-CV train+val union
+> is deduplicated on the tuple key. Splits, seeds, architectures and
+> parameter counts are unchanged. The R13 state of this repository is tagged
+> `r13`; the R13 weights and artifacts stay on the Hugging Face Hub at the `r13`
+> revision of each repo. R13 and R14 scores live in different normalized spaces
+> and on different samples, so never compare them as magnitudes.
+
+**Verified:** the published checkpoints are the ones that produced the paper's
+numbers (md5-identical to the training fleet's), and the canonical artifacts
+reproduce Panel A — Forma **R² 0.315** (bit-identical across both evaluators) and the FFNN rows
+**0.281 / 0.239** — plus Panel C (**NLL 0.211 / CRPS 0.295**), all on the
+published 379,859,933-cell sample. Full record:
+[`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
 
 ## Division of labour with the benchmark package
 
@@ -66,12 +79,13 @@ the competitor, Chronos, and LLM paths pull their own stacks via the extras abov
 
 ```bash
 pip install -e '/path/to/forma-release[llm,dev]'   # pytest + the LLM-harness deps the suite imports
-python -m pytest tests/ -q                         # expect: 77 passed
+python -m pytest tests/                            # expect: 302 passed, 4 skipped (Windows, no cuML)
 ```
 
 (`[llm]` matters: the harness tests import `httpx` from that extra. On a plain
 `[dev]` install they are skipped rather than run, so the passed count comes up
-short of 77.)
+short. The counts are from Windows without cuML: 3 skips are cuML-only tests, and
+1 is a symlink test that needs a Windows privilege and runs on Linux.)
 
 The suite needs no credentials, no GPU, and no downloads. It covers the scoring
 math (CRPS, mixture CRPS, mixture NLL — checked against quadrature, Monte-Carlo
@@ -112,12 +126,15 @@ on the model page first:
 ```bash
 pip install -U "huggingface_hub[cli]"
 hf auth login
-hf download forma-lab-mccombs/forma --include "checkpoints/*" --local-dir checkpoints
+hf download forma-lab-mccombs/forma --include "checkpoints/*" --local-dir .
 ```
 
-`--local-dir checkpoints` puts them where `predict_forma.py` looks by default;
-point `--checkpoints-dir` elsewhere if you prefer. A local `checkpoints/` is
-git-ignored, so a download can't be committed back into this repository.
+`hf download` keeps the repo's own paths under `--local-dir`, so `--local-dir .`
+lands the files in `./checkpoints/`, which is where `predict_forma.py` looks by
+default. (Passing `--local-dir checkpoints` would nest them one level deeper;
+`predict_forma.py` finds them there too.) Point `--checkpoints-dir` elsewhere if
+you prefer. A local `checkpoints/` is git-ignored, so a download can't be
+committed back into this repository.
 
 The Hub repo also carries two files the weights are inert without:
 
@@ -135,7 +152,7 @@ embedding dimensions before running.
 
 All real-data commands consume a canonical ProForma-20Q build. Build it once with
 the companion package (WRDS credentials required), pinning the frozen canonical
-regularization stats so the eval space matches the paper:
+(R14) regularization stats so the eval space matches the paper:
 
 ```bash
 proforma20q build --wrds-user <you> --reg-stats canonical   # -> data/processed/...
@@ -156,7 +173,7 @@ the build, so the trained embeddings are never permuted.
 >
 > ```bash
 > python scripts/predict_forma.py --family forma_fgrid --data-dir <build> \
->     --derive-firm-map-from-raw <build>/../raw/compustat_with_permno.parquet
+>     --derive-firm-map-from-raw <build>/../raw/compustat_fundq.parquet
 > ```
 >
 > Pass `--firm-map <path>` instead if you already have one.
@@ -172,14 +189,14 @@ by `mixture_calibration.py`.
 
 | Paper exhibit | Command |
 |---|---|
-| **Table 1 Panel A — Forma (Gaussian)** | `python scripts/predict_forma.py --family forma_fgrid --data-dir <build>` → `python scripts/group_seed_forecasts.py --src <per-seed dir> --dest <pool>/forecasts --arm forma_fgrid 'forma_fgrid__pf_full__6*__test__predictions.parquet' --materialize` → `proforma20q evaluate forma_fgrid__pf_full__test__predictions.parquet --against baselines --sample-mask <mask>` (Forma **0.289**) |
-| **Table 1 Panel B — Forma (Laplace)** | `python scripts/predict_forma.py --family forma_lap05_fgrid --data-dir <build>` → materialize (as above) → `proforma20q evaluate … --sample-mask <mask>` |
-| **Table 1 Panel C — mixture density** | `python scripts/mixture_calibration.py --exp_dir <lik_pool> --family forma_lap05_fgrid --seeds 60,61,62,63,64 --out results/panels` (Laplace **NLL 0.160 / CRPS 0.293**); Gaussian NLL 0.660 via `--family forma_fgrid`. Exact mixture NLL is emitted by `proforma20q`/`forma.scoring.evaluate` over the per-seed pool. |
-| **Table 1 — FFNN (linear / large)** | `python scripts/predict_ffnn.py --variant linear` (and `large`) → materialize → `proforma20q evaluate … --sample-mask <mask>` (Full R² **0.253 / 0.247**). Weights are not shipped; forecasts regenerate from the configs (seeds 60–64). |
-| **Table 1 — Random Forest** | `python scripts/regen_rf.py` → `proforma20q evaluate …` (GPU/cuML; see script header) |
+| **Table 1 Panel A — Forma (Gaussian)** | `python scripts/predict_forma.py --family forma_fgrid --data-dir <build>` → `python scripts/materialize_seed_mixture.py --src <per-seed dir> --dest <pool>/forecasts --arm 'forma_fgrid__pf_full__*__test__predictions.parquet' --expect-seeds 5 --expect-family gaussian` → `proforma20q evaluate forma_fgrid__pf_full__test__predictions.parquet --against baselines --sample-mask <mask>` (Forma **0.315**) |
+| **Table 1 Panel B — Forma (Laplace)** | `python scripts/predict_forma.py --family forma_lap05_fgrid --data-dir <build>` → materialize (as above, `--expect-family laplace`; the `.nll.json` sidecar travels with the mixture) → `proforma20q evaluate … --sample-mask <mask>` (Forma MAE **0.374**) |
+| **Table 1 Panel C — mixture density** | `python scripts/mixture_calibration.py --exp_dir <lik_pool> --family forma_lap05_fgrid --seeds 60,61,62,63,64 --out results/panels` (Laplace **NLL 0.211 / CRPS 0.295**); Gaussian NLL 0.675 via `--family forma_fgrid`. Exact mixture NLL is emitted by `proforma20q`/`forma.scoring.evaluate` over the per-seed pool. |
+| **Table 1 — FFNN (linear / large)** | `python scripts/predict_ffnn.py --variant linear` (and `large`) → materialize → `proforma20q evaluate … --sample-mask <mask>` (Full R² **0.281 / 0.239**). Weights are not shipped; forecasts regenerate from the configs (seeds 60–64; CV-selected epochs: linear 8, large 2). |
+| **Table 1 — Random Forest** | `python scripts/regen_rf.py` → `proforma20q evaluate …` (GPU/cuML; see script header). The camera-ready forests ran **unseeded**: cuML 25.12 dropped `random_state` through the wrapper, so a rerun reproduces the protocol, not the published forests bit for bit (the wrapper now passes the seed and warns if it is dropped). |
 | **Table 1 — Chained GBM (L1 / L2)** | `python scripts/regen_gbm.py` → `proforma20q evaluate …` (requires the `pf_full_glm` build; see script header) |
-| **Table 1 — Chronos-2** | `python -m forma.train --config configs/chronos2_raw12q.yaml --forecast-splits test`; Panel C CRPS via `python scripts/chronos_quantile_calibration.py …` |
-| **Table 1 — LLM column** | pin the sample (no spend): `python scripts/llm/llm_benchmark.py --build-origins-only --source tuples --present-in-q0 --sample-mode var-block --n-firms 133 --min-block 4 --max-block 20 --seed 20260615 --noise-subset-size 200 --data-dir <data-root> --feature-set pf_full --dataset r13_node_optionD_indfe_val8` (verify fingerprint `5715abbe3f9f5c3f`), then run each arm/model: `… --origins-file <origins.csv> --expect-origins-sha 5715abbe3f9f5c3f --prompt-version {unstructured,structured} --model {claude-opus-4-8,claude-sonnet-5,gpt-5.5} --batch` |
+| **Table 1 — Chronos-2** | `python -m forma.train --config configs/r14_chronos2_raw12q.yaml --forecast-splits test`; Panel C CRPS via `python scripts/chronos_quantile_calibration.py …` |
+| **Table 1 — LLM column** | pin the sample (no spend) on the **R13** build it was drawn from: `python scripts/llm/llm_benchmark.py --build-origins-only --source tuples --present-in-q0 --sample-mode var-block --n-firms 133 --min-block 4 --max-block 20 --seed 20260615 --noise-subset-size 200 --data-dir <data-root> --feature-set pf_full --dataset r13_node_optionD_indfe_val8` (verify fingerprint `5715abbe3f9f5c3f`), then run each arm/model: `… --origins-file <origins.csv> --expect-origins-sha 5715abbe3f9f5c3f --prompt-version {unstructured,structured} --model {claude-opus-4-8,claude-sonnet-5,gpt-5.5} --batch`. The camera-ready column re-scores the archived responses on R14 without new API calls: `python scripts/llm/llm_renormalize.py --csv <archived>/*_predictions.csv --processed-dir <r14 build> --dataset-tag r14_node_optionD_indfe_val8 --out-dir <pool>/forecasts` (see [the LLM column on R14](#the-llm-column-on-r14)). |
 | **Table 1 — Naive / Fade / ElasticNet** | `proforma20q baselines --which naive,fade,elasticnet` (reference baselines shipped by the benchmark package) |
 | **T1 / F1 Diebold-Mariano stars** | `python scripts/dm_tests.py --exp_dir <pool> --reference forma_fgrid__pf_full` (quarter-clustered, Newey-West h−1, HLN-corrected) |
 
@@ -187,8 +204,8 @@ by `mixture_calibration.py`.
 > by row-group and handles full scale on ordinary hardware — an earlier OOM
 > ([proforma-20q#12](https://github.com/forma-lab-mccombs/proforma-20q/issues/12)) is
 > fixed and closed, confirmed against the canonical Forma forecast
-> (472,695,966 rows — the model's actual coverage, not the 550,620,720-row
-> full grid): R² 0.289172 / MAE 0.408494 on the 327,244,429-cell Full sample.
+> (468,443,876 rows — the model's actual coverage, not the full grid):
+> R² 0.314885 / MAE 0.407668 on the 379,859,933-cell Full sample.
 > It is the authoritative evaluator for Panel A. The in-repo streaming
 > implementation (`python -m forma.scoring.evaluate --exp_dir <pool> --splits
 > test`) remains available, and the two agree (see
@@ -218,6 +235,25 @@ distributed. Full LLM regeneration costs real API spend and is not required for
 review — the harness, byte-exact prompt arms, and pinned-sample recipe are what
 ship.
 
+### The LLM column on R14
+
+The camera-ready LLM column was **not** re-queried. The LLMs forecast raw USD, and
+the standardized `prediction` the evaluator scores is computed afterwards from the
+build's regularization statistics. So `scripts/llm/llm_renormalize.py` re-applies
+that map, with the R14 build's statistics, to the archived R13-run `pred_raw`
+values. All 2,103 origins and every row are kept. Two consequences:
+
+- **The pin is drawn on the R13 build.** Run `--build-origins-only` with
+  `--dataset r13_node_optionD_indfe_val8` to recover fingerprint
+  `5715abbe3f9f5c3f`. Drawn on R14 the same seed gives a different sample,
+  because the eligible pool grew from 321,892 origins / 12,230 firms to
+  370,934 / 13,299.
+- **87 of the 2,103 origins (4.1%) saw less history than the R14 build holds.**
+  Their R13 prompts left blank 11,906 history cells that R14 fills: the
+  quarters the dropped CRSP trim restores. A fresh run on R14 prompts would
+  differ for those origins. On the 2,016 unchanged-prompt origins every model's
+  R² moves by at most 0.005.
+
 ## What ships vs. what is regenerated
 
 - **Forma** — trained checkpoints are published on the Hugging Face Hub
@@ -244,15 +280,17 @@ ship.
 
 The canonical Forma forecast — the exact file behind the paper's headline
 numbers — is **`forma_fgrid__pf_full__test__predictions.parquet`** (3.7 GiB, md5
-`1820fcc9…`). It is the 5-seed Gaussian mixture, moment-matched to one row per
-forecasted cell, and it is what **Table 1 Panel A** scores — its row count and
-the R²/MAE it reproduces are stated once, in the scoring note under
-[Reproduction map](#reproduction-map). Pool your own model against this file.
+`2994e73f2706eb8aa4a7cfdcd018ee3f`). It is the 5-seed Gaussian mixture,
+moment-matched to one row per forecasted cell by
+`scripts/materialize_seed_mixture.py`, and it is what **Table 1 Panel A**
+scores — its row count and the R²/MAE it reproduces are stated once, in the
+scoring note under [Reproduction map](#reproduction-map). Pool your own model
+against this file.
 
 These forecasts are too large for git, so they are published on the Hugging Face
 Hub at
 **[`forma-lab-mccombs/proforma-20q-artifacts`](https://huggingface.co/datasets/forma-lab-mccombs/proforma-20q-artifacts)**
-(~21.6 GiB total), under the licence terms presented on the dataset page, which
+(~17.0 GiB total), under the licence terms presented on the dataset page, which
 govern those files. The dataset is gated — accept the terms on the dataset page
 first.
 
@@ -271,19 +309,19 @@ hf download forma-lab-mccombs/proforma-20q-artifacts --repo-type dataset \
 partial transfers. Pull a parquet's density sidecar explicitly — it is a separate
 file. The companion files, all under `forecasts/`:
 
-| artifact | size | for |
-|---|---|---|
-| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 7.4 GiB | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
-| `forma_lap05_fgrid__pf_full__test__predictions.nll.json` | 33 B | that file's **family sidecar**. Keep it next to the parquet — without it the evaluator **silently scores the file as Gaussian**. |
-| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.4 GiB | **FFNN (linear)** comparator row |
-| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.5 GiB | **FFNN (large)** comparator row |
+| artifact | size | md5 | for |
+|---|---|---|---|
+| `forma_lap05_fgrid__pf_full__test__predictions.parquet` | 3.7 GiB | `81c137a3f8ecaa306aabab9009c88d15` | the **Forma** Laplace mixture — **Table 1 Panel B**, the absolute-error track |
+| `forma_lap05_fgrid__pf_full__test__predictions.nll.json` | 33 B | `a3d8659a201a2081dd693a8f0de051c3` | that file's **family sidecar**. Keep it next to the parquet — without it the evaluator **silently scores the file as Gaussian**. |
+| `ffnn_linear_b50__pf_full__test__predictions.parquet` | 4.8 GiB | `a6b331f4cc4d65549b79290dc25bfcd3` | **FFNN (linear)** comparator row |
+| `ffnn_large_b50__pf_full__test__predictions.parquet` | 4.8 GiB | `a7beb7846e5a0f8ce52f23d3c54b342e` | **FFNN (large)** comparator row |
 
 The same dataset repo carries the Full-sample mask under `mask/` and the
 per-horizon calibration series under `calibration/`.
 
 A companion dataset,
 **[`forma-lab-mccombs/forma-usd-forecasts`](https://huggingface.co/datasets/forma-lab-mccombs/forma-usd-forecasts)**
-(~12.4 GiB, gated on the same footing), publishes the forecasts in USD levels rather than the
+(12.3 GB, gated on the same footing), publishes the forecasts in USD levels rather than the
 model's asinh z-score space. Nothing in this repository consumes it; see that
 repo for its schema and provenance.
 
@@ -292,13 +330,12 @@ Every file carries the same seven columns — `firm_id`, `target`, `quarter`,
 directly, mapping `firm_id` → `firm`, `quarter` → `origin`, and
 `forecast_horizon` → `horizon` on read.
 
-> **Why the Laplace file is twice the size.** Both parquets hold the same
-> 472,695,966 rows, but they were not written by the same tool. The Gaussian
-> file is this repository's own write (`forecast_io`: float32 payload, zstd,
-> dictionary-encoded); the Laplace file was pooled through DuckDB and stores
-> `prediction`/`sigma` as **float64**, PLAIN-encoded under snappy, with
-> `quarter` ahead of `target`. Same data, same column names, ~2× the bytes.
-> Both read identically — but do not infer coverage from file size.
+All four mixtures were written by the same tool
+(`scripts/materialize_seed_mixture.py`: float32 `prediction`/`sigma`, rows
+grouped by firm-hash bucket and key-sorted within a bucket, not in any seed's
+row order). Join on the keys, never by position. The two Forma files hold
+468,443,876 rows each and the two FFNN files 617,034,600: the FFNN emits a
+wider grid, and the Full sample is the intersection.
 
 See the
 [benchmark repo's artifact tables](https://github.com/forma-lab-mccombs/proforma-20q#readme)
@@ -307,33 +344,31 @@ for the full manifest, including the mask and its canonical row index.
 ## Checkpoint inventory
 
 All ten Forma checkpoints hold **942,275** tensor entries each (942,210 trainable
-parameters + 65 buffers), ~11.38 MB. These files are **not in this repository** —
-they are the ones hosted at
-[`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma); the
-md5s below are of the **Hub-hosted files**, so you can verify a download:
+parameters + 65 buffers), 11,380,108 bytes. These files are **not in this
+repository** — they are the ones hosted at
+[`forma-lab-mccombs/forma`](https://huggingface.co/forma-lab-mccombs/forma). They are
+uploaded unmodified from the training fleet, so the md5s below are those of the
+Hub-hosted files **and** of the fleet's own outputs; use them to verify a download:
 
-| checkpoint (on the Hub, under `checkpoints/`) | md5 |
-|---|---|
-| `forma_fgrid_seed60.ckpt` | `65d5f8743c30f3f107507cbdc5535eda` |
-| `forma_fgrid_seed61.ckpt` | `7204edf9e5e7873471c342c1387c5fa9` |
-| `forma_fgrid_seed62.ckpt` | `34ff32ce3e666b5c14d03057fcf8b5d9` |
-| `forma_fgrid_seed63.ckpt` | `b13c11962cce5d183ab6f090e625fc62` |
-| `forma_fgrid_seed64.ckpt` | `2f9376564837d53010ec6105810036e1` |
-| `forma_lap05_fgrid_seed60.ckpt` | `12810fa23d216ca7335fcced930e50c3` |
-| `forma_lap05_fgrid_seed61.ckpt` | `2a06f6c680699983044a4712e340a977` |
-| `forma_lap05_fgrid_seed62.ckpt` | `69688ba7914c986001e4890bf55091b7` |
-| `forma_lap05_fgrid_seed63.ckpt` | `009e13bb57d0999994b3e5d0cda5be1a` |
-| `forma_lap05_fgrid_seed64.ckpt` | `3cf81854a9b27bc11b07d7e8f6b201eb` |
+| checkpoint (on the Hub, under `checkpoints/`) | trained by config | md5 |
+|---|---|---|
+| `forma_gaussian_seed60.ckpt` | `r14_forma_fgrid_seed60.yaml` | `3a94aee01b5fbe6f5fe41d183edb667a` |
+| `forma_gaussian_seed61.ckpt` | `r14_forma_fgrid_seed61.yaml` | `3771bb7b4249b57ca53c0c4de24130a4` |
+| `forma_gaussian_seed62.ckpt` | `r14_forma_fgrid_seed62.yaml` | `67a8f3e6d66ef09f852d5d95b3807caa` |
+| `forma_gaussian_seed63.ckpt` | `r14_forma_fgrid_seed63.yaml` | `670c21a29af45b675273c5285f80293a` |
+| `forma_gaussian_seed64.ckpt` | `r14_forma_fgrid_seed64.yaml` | `fd2ab845ee0217a13e9bb257e0b64dae` |
+| `forma_laplace_seed60.ckpt` | `r14_forma_lap05_fgrid_seed60.yaml` | `41b02696cb146adc7a3c48c71d7c1f26` |
+| `forma_laplace_seed61.ckpt` | `r14_forma_lap05_fgrid_seed61.yaml` | `397f706e49f64cc1e2e34fb164133c4e` |
+| `forma_laplace_seed62.ckpt` | `r14_forma_lap05_fgrid_seed62.yaml` | `90b6bc62b82a1aecbda5265e8f775a27` |
+| `forma_laplace_seed63.ckpt` | `r14_forma_lap05_fgrid_seed63.yaml` | `d221086d1ed5bc7e3e09694ad30f37fe` |
+| `forma_laplace_seed64.ckpt` | `r14_forma_lap05_fgrid_seed64.yaml` | `ae985ed69539df64cb00d754de0ab1d6` |
 
-> **These digests differ from the ones this README carried while the
-> checkpoints were distributed here, and that is expected.** The former copies
-> had the PyTorch-Lightning `callbacks` blob stripped (see
-> [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md) §1); the Hub copies retain it, so
-> the files are a few KB smaller and every md5 changes. The **tensors are
-> bit-identical** — all 62 entries of every state dict compare equal under
-> `torch.equal` across all ten checkpoints, and both families load through
-> `FormaModel.load_from_checkpoint` at 942,275 entries. Forecasts are
-> unchanged; only the container bytes differ.
+> **Public names vs config names.** The Hub publishes the Gaussian family
+> (`forma_fgrid` in configs, forecasts and `--family`) as `forma_gaussian_*` and
+> the Laplace family (`forma_lap05_fgrid`) as `forma_laplace_*`. Earlier versions
+> of this table listed config-style names that were never the Hub's paths.
+> `predict_forma.py` reads the Hub names. Superseded R13 checkpoints stay at the
+> `r13` revision of the Hub repo; they are not valid against the R14 statistics.
 
 ## Release documentation
 
@@ -349,7 +384,7 @@ detailed technical write-up behind the paper, in three parts:
 > The **canonical copy lives in the benchmark repository** (`docs/` there); this
 > is a byte-identical duplicate so that anyone holding only the model repository
 > has Parts B and C, which describe *this* code. Both copies are
-> `sha256 347c32111942ef2d2819347152008460d1ddf9fc56bd2234e1cfe4ddf6a56e0c`
+> `sha256 23e8e565f19ab6d01c5698233f09e072984e9d292c9d63cce50381c6d19b3b7b`
 > — if that digest ever differs between the two repositories, the benchmark
 > repository wins and this copy is stale. Regenerate both together.
 
